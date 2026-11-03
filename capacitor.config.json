@@ -1,0 +1,6 @@
+{
+  "appId": "ro.ionut.pontaj",
+  "appName": "Pontaj",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}
