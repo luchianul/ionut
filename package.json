@@ -1,7 +1,7 @@
 {
   "name": "pontaj",
   "productName": "Pontaj",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pontaj angajati - aplicatie Windows (EXE) si Android (APK), date in Google Sheets",
   "main": "electron/main.js",
   "author": "luchianul",
@@ -15,7 +15,8 @@
   "dependencies": {
     "@capacitor/android": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
-    "@capacitor/core": "^7.0.0"
+    "@capacitor/core": "^7.0.0",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -35,12 +36,6 @@
     "win": {
       "target": [
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
           "target": "nsis",
           "arch": [
             "x64"
@@ -53,8 +48,13 @@
       "allowToChangeInstallationDirectory": true,
       "artifactName": "Pontaj-${version}-installer.exe"
     },
-    "portable": {
-      "artifactName": "Pontaj-${version}-portable.exe"
-    }
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "luchianul",
+        "repo": "ionut",
+        "releaseType": "release"
+      }
+    ]
   }
 }

@@ -4,9 +4,9 @@ Aplicație de pontaj pentru angajați: **EXE pentru Windows** (administrator) ș
 Toate datele stau într-un **Google Sheets** al tău, deci toți văd aceleași informații.
 
 - **Angajat**: se loghează, adaugă pontaje (data, ora intrare / ieșire, adresa șantierului, km, parcare), vede totalul lunii. Butoane „Intrare acum" / „Iesire acum".
-- **Administrator**: vede pontajele tuturor, filtrează pe angajat și perioadă, aprobă / modifică / șterge, rezumat pe angajat, export CSV, creează și gestionează conturile angajaților și tarifele (tarif/oră, tarif/km).
+- **Administrator**: vede pontajele tuturor, filtrează pe angajat și perioadă, modifică / șterge, rezumat pe angajat, export CSV, creează și gestionează conturile angajaților și tarifele (tarif/oră, tarif/km).
 - **Total pontaj** = ore × tarif/oră + km × tarif/km + parcare. Tariful se copiază din profilul angajatului la crearea pontajului, deci modificările de tarif nu schimbă istoricul. Tura peste miezul nopții se calculează corect.
-- Angajatul nu poate seta tarife și nu poate modifica un pontaj după ce l-ai aprobat.
+- Angajatul nu poate seta tarife; își poate modifica sau șterge propriile pontaje. Nu există aprobare.
 
 ## 1. Pregătește Google Sheets (o singură dată, ~5 minute)
 
@@ -24,16 +24,15 @@ Toate datele stau într-un **Google Sheets** al tău, deci toți văd aceleași 
 
 Fie editezi [`www/config.js`](www/config.js) și pui URL-ul în `API_URL` (recomandat, înainte de build, ca angajații să nu îl scrie), fie îl introduci în aplicație la **Setări server** (ecranul de login).
 
-## 3. Construiește EXE și APK (automat în GitHub)
+## 3. Build și actualizări automate
 
-În repo: **Actions → Build EXE + APK → Run workflow**. După câteva minute, în rularea respectivă, la **Artifacts** descarci:
+La **fiecare push pe `main`** care modifică aplicația (`www/`, `electron/` etc.), GitHub construiește EXE + APK și publică automat un **Release** nou (`v1.1.N`) la [Releases](../../releases). Nu trebuie să faci nimic manual. Poți porni și manual: **Actions → Build si publica versiune noua → Run workflow**.
 
-- `Pontaj-Windows`: `Pontaj-1.0.0-portable.exe` (se pornește direct) și `Pontaj-1.0.0-installer.exe` (installer)
-- `Pontaj-Android`: `Pontaj.apk`
+- **Windows**: instalează o singură dată `Pontaj-<versiune>-installer.exe`. De acolo aplicația verifică singură Releases la pornire (și din oră în oră), descarcă versiunea nouă și te întreabă dacă repornești ca să o instaleze.
+- **Android**: instalează `Pontaj.apk` o singură dată. La pornire aplicația verifică Releases; dacă există o versiune mai nouă apare sus un banner **„Actualizează"** care descarcă APK-ul, iar tu îl instalezi peste cel vechi (datele nu se pierd). Android nu permite instalarea complet silențioasă în afara Google Play.
+- APK-ul este semnat cu o cheie fixă din `android-signing/` (aceeași la fiecare build, altfel Android nu acceptă actualizarea). Cheia este în repo, deci este potrivită pentru distribuție internă, nu pentru Google Play.
 
-Pentru o versiune publică pe pagina *Releases* creează un tag: `git tag v1.0.0 && git push origin v1.0.0`.
-
-**APK**: trimite fișierul angajaților și instalează-l (Android cere să permiți „instalare din surse necunoscute"). Este un APK de tip *debug*, semnat automat și potrivit pentru distribuție internă; pentru Google Play ar fi nevoie de semnare cu cheia ta.
+Ca să schimbi ceva în aplicație: modifici fișierele din `www/`, faci push pe `main`, iar în câteva minute toți primesc update-ul. Dacă modifici `apps-script/Code.gs`, trebuie să-l lipești în Apps Script și să faci **Deploy → Manage deployments → Edit → New version**.
 
 ## Dezvoltare locală
 

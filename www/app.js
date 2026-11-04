@@ -4,7 +4,7 @@
 
   const $app = document.getElementById('app');
   const LS = { api: 'pontaj.api', ses: 'pontaj.session' };
-  const S = { api: '', token: '', user: null, cfg: { moneda: 'EUR' }, tab: 'pontaje', employees: [], entries: [], filt: {} };
+  const S = { api: '', token: '', user: null, cfg: { moneda: 'EUR' }, tab: 'pontaje', employees: [], entries: [], filt: {}, loading: false, seq: 0 };
 
   /* ---------- utilitare ---------- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,6 +50,7 @@
   function saveSession() { localStorage.setItem(LS.ses, JSON.stringify({ token: S.token, user: S.user, cfg: S.cfg })); }
   function logout(expired) {
     S.token = ''; S.user = null; localStorage.removeItem(LS.ses);
+    Object.keys(localStorage).filter((k) => k.indexOf('pontaj.c.') === 0).forEach((k) => localStorage.removeItem(k));
     renderLogin(expired ? 'Sesiune expirata. Autentifica-te din nou.' : '');
   }
 
@@ -64,7 +65,7 @@
           <div class="err" id="e">${esc(msg || '')}</div>
           <div class="actions"><button class="btn grow">Autentificare</button></div>
         </form>
-        <p class="empty"><a href="#" id="srv">Setari server</a></p>
+        <p class="empty"><a href="#" id="srv">Setari server</a><br><small>Versiunea ${esc(window.APP_VERSION || 'dev')}</small></p>
       </div>`;
     document.getElementById('srv').onclick = (ev) => { ev.preventDefault(); askServer(); };
     if (!S.api) askServer();
@@ -129,12 +130,49 @@
     };
   }
 
-  /* ---------- formular pontaj ---------- */
-  function entryModal(entry, done) {
+  /* ---------- date + cache (afisare instant, apoi actualizare in fundal) ---------- */
+  const cget = (k) => { try { return JSON.parse(localStorage.getItem('pontaj.c.' + k)); } catch (e) { return null; } };
+  const cset = (k, v) => { try { localStorage.setItem('pontaj.c.' + k, JSON.stringify(v)); } catch (e) { /* plin */ } };
+  const ukey = (k) => S.user.id + '.' + k;
+  const byDate = (a, b) => (b.data + b.ora_intrare).localeCompare(a.data + a.ora_intrare);
+
+  function range() {
+    return S.user.rol === 'admin' ? { de: S.filt.de, pana: S.filt.pana } : monthRange(S.filt.luna);
+  }
+  const rkey = () => { const r = range(); return ukey(r.de + '.' + r.pana); };
+  const setLd = () => { const el = document.getElementById('ld'); if (el) el.style.display = S.loading ? '' : 'none'; };
+
+  // arata imediat ce stim (cache), apoi aduce datele proaspete (lista angajatilor si pontajele in paralel)
+  async function refresh() {
     const admin = S.user.rol === 'admin';
-    const e = entry || { data: isoDate(new Date()), ora_intrare: '', ora_iesire: '', adresa: '', km: '', parcare: '', angajat_id: admin ? '' : S.user.id, status: 'in asteptare' };
+    const r = range(), k = rkey(), seq = ++S.seq;
+    S.entries = cget(k) || [];
+    if (admin && !S.employees.length) S.employees = cget(ukey('emps')) || [];
+    paint();
+    S.loading = true; setLd();
+    try {
+      const [emps, list] = await Promise.all([admin ? api('ang_list') : null, api('pon_list', r)]);
+      if (seq !== S.seq) return;
+      if (emps) { S.employees = emps; cset(ukey('emps'), emps); }
+      S.entries = list; cset(k, list);
+    } catch (err) { if (seq === S.seq) toast(err.message); }
+    if (seq === S.seq) { S.loading = false; paint(); }
+  }
+
+  function inRange(x) { const r = range(); return x.data >= r.de && x.data <= r.pana; }
+  function onSaved(x) {
+    S.entries = S.entries.filter((y) => y.id !== x.id);
+    if (inRange(x)) S.entries.push(x);
+    S.entries.sort(byDate); cset(rkey(), S.entries); paint();
+  }
+  function onDeleted(id) { S.entries = S.entries.filter((y) => y.id !== id); cset(rkey(), S.entries); paint(); }
+  const paint = () => (S.user.rol === 'admin' ? paintAdmin() : paintEmployee());
+
+  /* ---------- formular pontaj ---------- */
+  function entryModal(entry) {
+    const admin = S.user.rol === 'admin';
+    const e = entry || { data: isoDate(new Date()), ora_intrare: '', ora_iesire: '', adresa: '', km: '', parcare: '', angajat_id: admin ? S.filt.angajat_id || '' : S.user.id };
     const emps = S.employees.filter((x) => x.activ || x.id === e.angajat_id);
-    const locked = !admin && e.status === 'aprobat';
     const m = modal(`<h2>${entry ? 'Modifica pontaj' : 'Pontaj nou'}</h2>
       <form id="f">
         ${admin ? `<label>Angajat</label><select name="angajat_id" required><option value="">— alege —</option>${emps.map((x) => `<option value="${x.id}" ${x.id === e.angajat_id ? 'selected' : ''}>${esc(x.nume)}</option>`).join('')}</select>` : ''}
@@ -151,49 +189,51 @@
         </div>
         ${admin ? `<div class="row">
           <div><label>Tarif / ora</label><input name="tarif_h" inputmode="decimal" value="${esc(entry ? e.tarif_h : '')}" placeholder="din profil"></div>
-          <div><label>Tarif / km</label><input name="tarif_km" inputmode="decimal" value="${esc(entry ? e.tarif_km : '')}" placeholder="din profil"></div></div>
-          <label>Status</label><select name="status"><option value="in asteptare" ${e.status !== 'aprobat' ? 'selected' : ''}>In asteptare</option><option value="aprobat" ${e.status === 'aprobat' ? 'selected' : ''}>Aprobat</option></select>` : ''}
+          <div><label>Tarif / km</label><input name="tarif_km" inputmode="decimal" value="${esc(entry ? e.tarif_km : '')}" placeholder="din profil"></div></div>` : ''}
         <div class="preview" id="pv"></div>
-        <div class="err" id="er">${locked ? 'Pontajul este aprobat si nu mai poate fi modificat.' : ''}</div>
-        <div class="actions"><button class="btn grow" ${locked ? 'disabled' : ''}>Salveaza</button><button type="button" class="btn sec" id="x">Renunta</button></div>
+        <div class="err" id="er"></div>
+        <div class="actions"><button class="btn grow">Salveaza</button><button type="button" class="btn sec" id="x">Renunta</button>${entry ? '<button type="button" class="btn bad" id="del">Sterge</button>' : ''}</div>
       </form>`);
     const f = m.querySelector('#f');
     const preview = () => {
       const ore = calcOre(f.ora_intrare.value, f.ora_iesire.value);
-      let th = entry ? e.tarif_h : 0, tk = entry ? e.tarif_km : 0;
+      let th = entry ? e.tarif_h : S.user.tarif_h, tk = entry ? e.tarif_km : S.user.tarif_km;
       if (admin) {
         const emp = S.employees.find((x) => x.id === f.angajat_id.value) || {};
         th = f.tarif_h.value !== '' ? num(f.tarif_h.value) : (entry ? e.tarif_h : emp.tarif_h || 0);
         tk = f.tarif_km.value !== '' ? num(f.tarif_km.value) : (entry ? e.tarif_km : emp.tarif_km || 0);
-      } else if (!entry) { th = S.user.tarif_h; tk = S.user.tarif_km; }
-      const tot = ore * th + num(f.km.value) * tk + num(f.parcare.value);
-      m.querySelector('#pv').textContent = `${nr(ore)} ore · total ${money(tot)}`;
+      }
+      m.querySelector('#pv').textContent = `${nr(ore)} ore · total ${money(ore * th + num(f.km.value) * tk + num(f.parcare.value))}`;
     };
     f.addEventListener('input', preview); preview();
     m.querySelector('#in').onclick = () => { f.ora_intrare.value = nowTime(); preview(); };
     m.querySelector('#outb').onclick = () => { f.ora_iesire.value = nowTime(); preview(); };
     m.querySelector('#x').onclick = () => m.remove();
+    const del = m.querySelector('#del');
+    if (del) del.onclick = async () => {
+      if (!confirm('Stergi acest pontaj?')) return;
+      del.disabled = true;
+      try { await api('pon_delete', { id: entry.id }); m.remove(); onDeleted(entry.id); toast('Sters'); }
+      catch (err) { m.querySelector('#er').textContent = err.message; del.disabled = false; }
+    };
     f.onsubmit = async (ev) => {
       ev.preventDefault();
       const d = { id: entry && entry.id, data: f.data.value, ora_intrare: f.ora_intrare.value, ora_iesire: f.ora_iesire.value, adresa: f.adresa.value, km: f.km.value, parcare: f.parcare.value };
-      if (admin) { d.angajat_id = f.angajat_id.value; d.tarif_h = f.tarif_h.value; d.tarif_km = f.tarif_km.value; d.status = f.status.value; }
-      const b = f.querySelector('.btn.grow'); b.disabled = true;
-      try { await api('pon_save', d); m.remove(); toast('Salvat'); done(); }
-      catch (err) { m.querySelector('#er').textContent = err.message; b.disabled = false; }
+      if (admin) { d.angajat_id = f.angajat_id.value; d.tarif_h = f.tarif_h.value; d.tarif_km = f.tarif_km.value; }
+      const b = f.querySelector('.btn.grow'); b.disabled = true; b.textContent = 'Se salveaza…';
+      try { const saved = await api('pon_save', d); m.remove(); onSaved(saved); toast('Salvat'); }
+      catch (err) { m.querySelector('#er').textContent = err.message; b.disabled = false; b.textContent = 'Salveaza'; }
     };
   }
 
+  const sum = (rows) => rows.reduce((a, x) => ({ ore: a.ore + x.ore, km: a.km + x.km, parcare: a.parcare + x.parcare, total: a.total + x.total }), { ore: 0, km: 0, parcare: 0, total: 0 });
+  const ldHtml = '<span class="mut" id="ld" style="display:none">↻ se actualizeaza…</span>';
+
   /* ---------- ecran angajat ---------- */
-  async function renderEmployee() {
-    const ym = S.filt.luna || isoDate(new Date()).slice(0, 7);
-    S.filt.luna = ym;
-    const r = monthRange(ym);
-    shell('<div class="empty">Se incarca…</div>');
-    let list;
-    try { list = await api('pon_list', r); } catch (err) { return toast(err.message); }
-    const tot = list.reduce((a, x) => ({ ore: a.ore + x.ore, km: a.km + x.km, parcare: a.parcare + x.parcare, total: a.total + x.total }), { ore: 0, km: 0, parcare: 0, total: 0 });
+  function paintEmployee() {
+    const list = S.entries, tot = sum(list);
     shell(`
-      <div class="card"><label style="margin-top:0">Luna</label><input type="month" id="luna" value="${ym}"></div>
+      <div class="card"><label style="margin-top:0">Luna ${ldHtml}</label><input type="month" id="luna" value="${S.filt.luna}"></div>
       <div class="stats">
         <div class="stat"><b>${nr(tot.ore)}</b><span>ore</span></div>
         <div class="stat"><b>${nr(tot.km, 1)}</b><span>km</span></div>
@@ -206,99 +246,83 @@
             <h3>${fdate(x.data)} · ${esc(x.ora_intrare)}–${x.ora_iesire ? esc(x.ora_iesire) : '…'}</h3>
             <div class="mut">${esc(x.adresa) || 'fara adresa'}</div>
             <div class="mut">${nr(x.ore)} h · ${nr(x.km, 1)} km · parcare ${money(x.parcare)}</div>
-            <span class="tag ${x.status === 'aprobat' ? 'ok' : ''}">${x.status === 'aprobat' ? 'aprobat' : 'in asteptare'}</span>
             ${x.ora_iesire ? '' : '<span class="tag live">in desfasurare</span>'}
           </div>
           <div class="tot">${money(x.total)}</div>
-        </div>`).join('') : '<div class="empty">Niciun pontaj in aceasta luna.</div>'}`,
+        </div>`).join('') : `<div class="empty">${S.loading ? 'Se incarca…' : 'Niciun pontaj in aceasta luna.'}</div>`}`,
       '<button class="btn fab" id="add">+ Pontaj</button>');
-    document.getElementById('luna').onchange = (ev) => { if (ev.target.value) { S.filt.luna = ev.target.value; renderEmployee(); } };
-    document.getElementById('add').onclick = () => entryModal(null, renderEmployee);
-    document.querySelectorAll('.entry').forEach((el) => {
-      el.onclick = () => entryModal(list.find((x) => x.id === el.dataset.id), renderEmployee);
-    });
+    setLd();
+    document.getElementById('luna').onchange = (ev) => { if (ev.target.value) { S.filt.luna = ev.target.value; refresh(); } };
+    document.getElementById('add').onclick = () => entryModal(null);
+    document.querySelectorAll('.entry').forEach((el) => { el.onclick = () => entryModal(list.find((x) => x.id === el.dataset.id)); });
   }
 
   /* ---------- ecran admin ---------- */
-  async function renderAdmin() {
-    if (!S.filt.de) { const t = new Date(); Object.assign(S.filt, monthRange(isoDate(t).slice(0, 7)), { angajat_id: '' }); }
-    try { S.employees = await api('ang_list'); } catch (err) { return toast(err.message); }
-    const tabs = `<div class="tabs">${[['pontaje', 'Pontaje'], ['rezumat', 'Rezumat'], ['angajati', 'Angajati']].map(([k, v]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${v}</button>`).join('')}</div>`;
-    if (S.tab === 'angajati') return renderEmployees(tabs);
-    shell(tabs + '<div class="empty">Se incarca…</div>');
-    bindTabs();
-    try { S.entries = await api('pon_list', { de: S.filt.de, pana: S.filt.pana, angajat_id: S.filt.angajat_id }); } catch (err) { return toast(err.message); }
+  const visible = () => S.entries.filter((x) => !S.filt.angajat_id || x.angajat_id === S.filt.angajat_id);
+
+  function paintAdmin() {
+    const tabs = `<div class="tabs">${[['pontaje', 'Pontaje'], ['rezumat', 'Rezumat'], ['angajati', 'Angajati']].map(([k, v]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${v}</button>`).join('')}${ldHtml}</div>`;
+    if (S.tab === 'angajati') { renderEmployees(tabs); setLd(); return; }
     const filters = `<div class="card filters">
       <div><label style="margin-top:0">Angajat</label><select id="fa"><option value="">Toti</option>${S.employees.map((x) => `<option value="${x.id}" ${x.id === S.filt.angajat_id ? 'selected' : ''}>${esc(x.nume)}</option>`).join('')}</select></div>
       <div><label style="margin-top:0">De la</label><input type="date" id="fd" value="${S.filt.de}"></div>
       <div><label style="margin-top:0">Pana la</label><input type="date" id="fp" value="${S.filt.pana}"></div>
     </div>`;
-    const body = S.tab === 'rezumat' ? summaryHtml() : entriesHtml();
-    shell(tabs + filters + body, S.tab === 'pontaje' ? '<button class="btn fab" id="add">+ Pontaj</button>' : '');
-    bindTabs();
-    document.getElementById('fa').onchange = (ev) => { S.filt.angajat_id = ev.target.value; renderAdmin(); };
-    document.getElementById('fd').onchange = (ev) => { S.filt.de = ev.target.value; renderAdmin(); };
-    document.getElementById('fp').onchange = (ev) => { S.filt.pana = ev.target.value; renderAdmin(); };
-    const add = document.getElementById('add'); if (add) add.onclick = () => entryModal(null, renderAdmin);
+    shell(tabs + filters + (S.tab === 'rezumat' ? summaryHtml() : entriesHtml()), S.tab === 'pontaje' ? '<button class="btn fab" id="add">+ Pontaj</button>' : '');
+    setLd(); bindTabs();
+    document.getElementById('fa').onchange = (ev) => { S.filt.angajat_id = ev.target.value; paint(); };   // fara reincarcare
+    document.getElementById('fd').onchange = (ev) => { if (ev.target.value) { S.filt.de = ev.target.value; refresh(); } };
+    document.getElementById('fp').onchange = (ev) => { if (ev.target.value) { S.filt.pana = ev.target.value; refresh(); } };
+    const add = document.getElementById('add'); if (add) add.onclick = () => entryModal(null);
     const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCsv;
-    document.querySelectorAll('[data-edit]').forEach((b) => { b.onclick = () => entryModal(S.entries.find((x) => x.id === b.dataset.edit), renderAdmin); });
+    document.querySelectorAll('[data-edit]').forEach((b) => { b.onclick = () => entryModal(S.entries.find((x) => x.id === b.dataset.edit)); });
     document.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = async () => {
         if (!confirm('Stergi acest pontaj?')) return;
-        try { await api('pon_delete', { id: b.dataset.del }); toast('Sters'); renderAdmin(); } catch (err) { toast(err.message); }
-      };
-    });
-    document.querySelectorAll('[data-ok]').forEach((b) => {
-      b.onclick = async () => {
-        try { await api('pon_status', { id: b.dataset.ok, status: b.dataset.to }); renderAdmin(); } catch (err) { toast(err.message); }
+        b.disabled = true;
+        try { await api('pon_delete', { id: b.dataset.del }); onDeleted(b.dataset.del); toast('Sters'); } catch (err) { toast(err.message); b.disabled = false; }
       };
     });
   }
 
   function bindTabs() {
-    document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderAdmin(); }; });
+    document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; paint(); }; });  // instant, din memorie
   }
 
-  const sum = (rows) => rows.reduce((a, x) => ({ ore: a.ore + x.ore, km: a.km + x.km, parcare: a.parcare + x.parcare, total: a.total + x.total }), { ore: 0, km: 0, parcare: 0, total: 0 });
-
   function entriesHtml() {
-    const t = sum(S.entries);
+    const rows = visible(), t = sum(rows);
     return `<div class="stats">
-        <div class="stat"><b>${S.entries.length}</b><span>pontaje</span></div>
+        <div class="stat"><b>${rows.length}</b><span>pontaje</span></div>
         <div class="stat"><b>${nr(t.ore)}</b><span>ore</span></div>
         <div class="stat"><b>${nr(t.km, 1)}</b><span>km</span></div>
         <div class="stat"><b>${money(t.total)}</b><span>total</span></div>
       </div>
       <div class="card scroll">
         <div class="actions" style="margin:0 0 8px"><button class="btn sec sm" id="csv">Export CSV</button></div>
-        ${S.entries.length ? `<table><thead><tr><th>Data</th><th>Angajat</th><th>Interval</th><th>Adresa</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th><th></th></tr></thead><tbody>
-        ${S.entries.map((x) => `<tr>
+        ${rows.length ? `<table><thead><tr><th>Data</th><th>Angajat</th><th>Interval</th><th>Adresa</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th><th></th></tr></thead><tbody>
+        ${rows.map((x) => `<tr>
           <td>${fdate(x.data)}</td><td>${esc(x.angajat)}</td><td>${esc(x.ora_intrare)}–${esc(x.ora_iesire) || '…'}</td><td>${esc(x.adresa)}</td>
           <td class="n">${nr(x.ore)}</td><td class="n">${nr(x.km, 1)}</td><td class="n">${money(x.parcare)}</td><td class="n"><b>${money(x.total)}</b></td>
-          <td class="n">
-            ${x.status === 'aprobat' ? `<button class="btn sm ok" data-ok="${x.id}" data-to="in asteptare" title="Anuleaza aprobarea">✔</button>` : `<button class="btn sm sec" data-ok="${x.id}" data-to="aprobat">Aproba</button>`}
-            <button class="btn sm sec" data-edit="${x.id}">Edit</button>
-            <button class="btn sm bad" data-del="${x.id}">✕</button>
-          </td></tr>`).join('')}
-        </tbody></table>` : '<div class="empty">Niciun pontaj in intervalul ales.</div>'}
+          <td class="n"><button class="btn sm sec" data-edit="${x.id}">Edit</button> <button class="btn sm bad" data-del="${x.id}">✕</button></td></tr>`).join('')}
+        </tbody></table>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Niciun pontaj in intervalul ales.'}</div>`}
       </div>`;
   }
 
   function summaryHtml() {
-    const by = {};
-    S.entries.forEach((x) => { (by[x.angajat_id] = by[x.angajat_id] || { nume: x.angajat, rows: [] }).rows.push(x); });
+    const rowsAll = visible(), by = {};
+    rowsAll.forEach((x) => { (by[x.angajat_id] = by[x.angajat_id] || { nume: x.angajat, rows: [] }).rows.push(x); });
     const rows = Object.values(by).map((g) => Object.assign({ nume: g.nume, n: g.rows.length }, sum(g.rows))).sort((a, b) => a.nume.localeCompare(b.nume));
-    const t = sum(S.entries);
+    const t = sum(rowsAll);
     return `<div class="card scroll">${rows.length ? `<table><thead><tr><th>Angajat</th><th class="n">Pontaje</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th></tr></thead><tbody>
       ${rows.map((r) => `<tr><td>${esc(r.nume)}</td><td class="n">${r.n}</td><td class="n">${nr(r.ore)}</td><td class="n">${nr(r.km, 1)}</td><td class="n">${money(r.parcare)}</td><td class="n"><b>${money(r.total)}</b></td></tr>`).join('')}
-      <tr><td><b>TOTAL</b></td><td class="n"><b>${S.entries.length}</b></td><td class="n"><b>${nr(t.ore)}</b></td><td class="n"><b>${nr(t.km, 1)}</b></td><td class="n"><b>${money(t.parcare)}</b></td><td class="n"><b>${money(t.total)}</b></td></tr>
-      </tbody></table>` : '<div class="empty">Nimic in intervalul ales.</div>'}</div>`;
+      <tr><td><b>TOTAL</b></td><td class="n"><b>${rowsAll.length}</b></td><td class="n"><b>${nr(t.ore)}</b></td><td class="n"><b>${nr(t.km, 1)}</b></td><td class="n"><b>${money(t.parcare)}</b></td><td class="n"><b>${money(t.total)}</b></td></tr>
+      </tbody></table>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Nimic in intervalul ales.'}</div>`}</div>`;
   }
 
   function exportCsv() {
     const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const head = ['Data', 'Angajat', 'Ora intrare', 'Ora iesire', 'Adresa', 'Ore', 'Km', 'Parcare', 'Tarif/h', 'Tarif/km', 'Total', 'Status'];
-    const lines = [head.map(q).join(';')].concat(S.entries.map((x) => [x.data, x.angajat, x.ora_intrare, x.ora_iesire, x.adresa, x.ore, x.km, x.parcare, x.tarif_h, x.tarif_km, x.total, x.status].map(q).join(';')));
+    const head = ['Data', 'Angajat', 'Ora intrare', 'Ora iesire', 'Adresa', 'Ore', 'Km', 'Parcare', 'Tarif/h', 'Tarif/km', 'Total'];
+    const lines = [head.map(q).join(';')].concat(visible().map((x) => [x.data, x.angajat, x.ora_intrare, x.ora_iesire, x.adresa, x.ore, x.km, x.parcare, x.tarif_h, x.tarif_km, x.total].map(q).join(';')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `pontaje_${S.filt.de}_${S.filt.pana}.csv`;
@@ -342,17 +366,43 @@
       ev.preventDefault();
       const f = ev.target;
       try {
-        await api('ang_save', { id: emp && emp.id, nume: f.nume.value, utilizator: f.utilizator.value, parola: f.parola.value, tarif_h: f.tarif_h.value, tarif_km: f.tarif_km.value, rol: f.rol.value, activ: f.activ.value === 'true' });
-        m.remove(); toast('Salvat'); renderAdmin();
+        const saved = await api('ang_save', { id: emp && emp.id, nume: f.nume.value, utilizator: f.utilizator.value, parola: f.parola.value, tarif_h: f.tarif_h.value, tarif_km: f.tarif_km.value, rol: f.rol.value, activ: f.activ.value === 'true' });
+        const i = S.employees.findIndex((x) => x.id === saved.id);
+        if (i >= 0) S.employees[i] = saved; else S.employees.push(saved);
+        S.employees.sort((x, y) => x.nume.localeCompare(y.nume)); cset(ukey('emps'), S.employees);
+        m.remove(); toast('Salvat'); paint();
       } catch (err) { m.querySelector('#er').textContent = err.message; }
     };
+  }
+
+  /* ---------- actualizari ---------- */
+  const ver = (v) => String(v).replace(/^v/, '').split('.').map(Number);
+  const newer = (a, b) => { const x = ver(a), y = ver(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+
+  // Android: nu exista update silentios in afara Google Play, deci anuntam versiunea noua si dam descarcarea APK-ului.
+  // Windows: actualizarea o face Electron (electron-updater), vezi electron/main.js.
+  async function checkUpdate() {
+    const native = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+    const cur = window.APP_VERSION, repo = (window.APP_CONFIG || {}).REPO;
+    if (!native || !cur || cur === 'dev' || !repo) return;
+    try {
+      const r = await (await fetch('https://api.github.com/repos/' + repo + '/releases/latest')).json();
+      const apk = (r.assets || []).find((a) => /\.apk$/i.test(a.name));
+      if (!apk || !newer(r.tag_name, cur)) return;
+      const bar = document.createElement('div');
+      bar.className = 'upd';
+      bar.innerHTML = `<span>Versiune noua disponibila (${esc(r.tag_name)})</span><button class="btn sm">Actualizeaza</button>`;
+      bar.querySelector('button').onclick = () => { window.location.href = apk.browser_download_url; };
+      document.body.prepend(bar);
+    } catch (e) { /* offline: ignoram */ }
   }
 
   /* ---------- pornire ---------- */
   function start() {
     if (!S.user) return renderLogin();
-    S.filt = {}; S.tab = 'pontaje';
-    if (S.user.rol === 'admin') renderAdmin(); else renderEmployee();
+    S.filt = S.user.rol === 'admin' ? Object.assign(monthRange(isoDate(new Date()).slice(0, 7)), { angajat_id: '' }) : { luna: isoDate(new Date()).slice(0, 7) };
+    S.tab = 'pontaje'; S.employees = []; S.entries = [];
+    refresh();
   }
 
   S.api = localStorage.getItem(LS.api) || (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
@@ -362,4 +412,5 @@
   } catch (e) { /* ignore */ }
   window.__pontaj = { S };
   start();
+  checkUpdate();
 })();

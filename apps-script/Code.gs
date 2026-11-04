@@ -13,6 +13,7 @@ const TAB_ANG = 'Angajati';
 const TAB_PON = 'Pontaje';
 const TAB_SET = 'Setari';
 const H_ANG = ['id', 'nume', 'utilizator', 'salt', 'hash', 'rol', 'tarif_h', 'tarif_km', 'activ'];
+// 'status' ramane ca atare pentru compatibilitate cu foile existente, dar nu mai este folosit
 const H_PON = ['id', 'angajat_id', 'data', 'ora_intrare', 'ora_iesire', 'adresa', 'km', 'parcare',
   'tarif_h', 'tarif_km', 'ore', 'total', 'status', 'creat_la', 'modificat_la'];
 const TOKEN_ZILE = 30;
@@ -51,17 +52,20 @@ function doGet() {
   return ContentService.createTextOutput('Pontaj API OK');
 }
 
+const WRITE_ACTIONS = ['pon_save', 'pon_delete', 'ang_save', 'parola_schimba'];
+let MEMO_ = {}; // citiri memoizate in cadrul unui singur apel (foaia se citeste o singura data)
+
 function doPost(e) {
-  let out;
-  const lock = LockService.getScriptLock();
+  let out, lock = null;
+  MEMO_ = {};
   try {
-    lock.waitLock(20000);
     const req = JSON.parse(e.postData.contents);
+    if (WRITE_ACTIONS.indexOf(req.action) >= 0) { lock = LockService.getScriptLock(); lock.waitLock(20000); } // citirile nu asteapta
     out = { ok: true, data: dispatch_(req) };
   } catch (err) {
     out = { ok: false, error: String(err.message || err), auth: !!err.auth };
   } finally {
-    try { lock.releaseLock(); } catch (x) { /* ignore */ }
+    try { if (lock) lock.releaseLock(); } catch (x) { /* ignore */ }
   }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -77,7 +81,6 @@ function dispatch_(req) {
     case 'pon_list': return ponList_(u, d);
     case 'pon_save': return ponSave_(u, d);
     case 'pon_delete': return ponDelete_(u, d);
-    case 'pon_status': need_(admin); return ponStatus_(d);
     case 'ang_list': need_(admin); return readAll_(TAB_ANG, H_ANG).map(publicUser_);
     case 'ang_save': need_(admin); return angSave_(u, d);
     default: throw new Error('Actiune necunoscuta: ' + a);
@@ -188,7 +191,7 @@ function pubPon_(p, names) {
   return { id: p.id, angajat_id: p.angajat_id, angajat: names[p.angajat_id] || '?', data: String(p.data),
     ora_intrare: String(p.ora_intrare), ora_iesire: String(p.ora_iesire || ''), adresa: String(p.adresa || ''),
     km: num_(p.km), parcare: num_(p.parcare), tarif_h: num_(p.tarif_h), tarif_km: num_(p.tarif_km),
-    ore: num_(p.ore), total: num_(p.total), status: String(p.status) };
+    ore: num_(p.ore), total: num_(p.total) };
 }
 
 function ponSave_(u, d) {
@@ -196,9 +199,7 @@ function ponSave_(u, d) {
   const emps = readAll_(TAB_ANG, H_ANG);
   const ex = d.id ? readAll_(TAB_PON, H_PON).find(function (p) { return p.id === d.id; }) : null;
   if (d.id && !ex) throw new Error('Pontajul nu exista.');
-  if (!admin && ex && (ex.angajat_id !== u.id || ex.status === 'aprobat')) {
-    throw new Error('Nu poti modifica acest pontaj (este al altcuiva sau deja aprobat).');
-  }
+  if (!admin && ex && ex.angajat_id !== u.id) throw new Error('Nu poti modifica pontajul altcuiva.');
   const angId = admin ? (d.angajat_id || (ex && ex.angajat_id)) : u.id;
   const emp = emps.find(function (e) { return e.id === angId; });
   if (!emp) throw new Error('Alege un angajat.');
@@ -207,7 +208,7 @@ function ponSave_(u, d) {
   if (d.ora_iesire && !/^\d{2}:\d{2}$/.test(String(d.ora_iesire))) throw new Error('Ora de iesire invalida.');
 
   const now = new Date().toISOString();
-  const o = ex || { id: 'p_' + uid_(), creat_la: now, status: 'in asteptare' };
+  const o = ex || { id: 'p_' + uid_(), creat_la: now };
   o.angajat_id = angId;
   o.data = d.data;
   o.ora_intrare = d.ora_intrare;
@@ -218,7 +219,6 @@ function ponSave_(u, d) {
   if (admin) {
     o.tarif_h = hasVal_(d.tarif_h) ? num_(d.tarif_h) : (ex ? num_(ex.tarif_h) : num_(emp.tarif_h));
     o.tarif_km = hasVal_(d.tarif_km) ? num_(d.tarif_km) : (ex ? num_(ex.tarif_km) : num_(emp.tarif_km));
-    if (d.status === 'aprobat' || d.status === 'in asteptare') o.status = d.status;
   } else if (!ex) {
     o.tarif_h = num_(emp.tarif_h);
     o.tarif_km = num_(emp.tarif_km);
@@ -235,19 +235,9 @@ function ponDelete_(u, d) {
   const sh = sheet_(TAB_PON);
   const p = readAll_(TAB_PON, H_PON).find(function (x) { return x.id === d.id; });
   if (!p) throw new Error('Pontajul nu exista.');
-  if (u.rol !== 'admin' && (p.angajat_id !== u.id || p.status === 'aprobat')) {
-    throw new Error('Nu poti sterge acest pontaj.');
-  }
+  if (u.rol !== 'admin' && p.angajat_id !== u.id) throw new Error('Nu poti sterge pontajul altcuiva.');
   sh.deleteRow(p._row);
-  return true;
-}
-
-function ponStatus_(d) {
-  const p = readAll_(TAB_PON, H_PON).find(function (x) { return x.id === d.id; });
-  if (!p) throw new Error('Pontajul nu exista.');
-  p.status = d.status === 'aprobat' ? 'aprobat' : 'in asteptare';
-  p.modificat_la = new Date().toISOString();
-  writeRow_(TAB_PON, H_PON, p);
+  MEMO_ = {};
   return true;
 }
 
@@ -282,14 +272,16 @@ function tab_(ss, name, head) {
 }
 
 function readAll_(name, head) {
+  if (MEMO_[name]) return MEMO_[name];
   const sh = sheet_(name);
   const last = sh.getLastRow();
-  if (last < 2) return [];
-  return sh.getRange(2, 1, last - 1, head.length).getValues().map(function (r, i) {
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, head.length).getValues().map(function (r, i) {
     const o = { _row: i + 2 };
     head.forEach(function (h, j) { o[h] = r[j]; });
     return o;
   });
+  MEMO_[name] = rows;
+  return rows;
 }
 
 function write_(sh, row, head, o) {
@@ -299,6 +291,7 @@ function write_(sh, row, head, o) {
 function writeRow_(name, head, o) {
   const sh = sheet_(name);
   write_(sh, o._row || (sh.getLastRow() + 1), head, o);
+  delete MEMO_[name];
 }
 
 function hash_(salt, parola) {

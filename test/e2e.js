@@ -54,10 +54,13 @@ const server = http.createServer((req, res) => {
   assert.strictEqual(call('pon_save', { id: p1.data.id, data: '2026-11-02', ora_intrare: '08:00' }, tb).ok, false);
   assert.strictEqual(call('pon_delete', { id: p1.data.id }, tb).ok, false);
 
-  assert.strictEqual(call('pon_status', { id: p1.data.id, status: 'aprobat' }, T).ok, false);
-  assert(call('pon_status', { id: p1.data.id, status: 'aprobat' }, A).ok);
-  assert.strictEqual(call('pon_save', { id: p1.data.id, data: '2026-11-02', ora_intrare: '09:00' }, T).ok, false, 'pontaj aprobat blocat');
+  const ed = call('pon_save', { id: p1.data.id, data: '2026-11-02', ora_intrare: '08:00', ora_iesire: '17:00', adresa: 'Str. Lunga 5', km: 20, parcare: 3.5 }, T);
+  assert(ed.ok && ed.data.ore === 9, 'angajatul isi poate modifica pontajul (fara aprobare)');
+  assert.strictEqual(ed.data.status, undefined, 'nu mai exista status');
+  assert(call('pon_delete', { id: night.data.id }, T).ok, 'angajatul isi poate sterge pontajul');
+  assert(call('pon_save', { data: '2026-11-02', ora_intrare: '22:00', ora_iesire: '06:00' }, T).ok);
   assert.strictEqual(call('pon_list', { angajat_id: ana.data.id }, A).data.length, 2);
+  assert.strictEqual(call('pon_status', { id: p1.data.id, status: 'aprobat' }, A).ok, false, 'aprobarea a fost eliminata');
   assert.strictEqual(call('pon_list', {}, 'token.fals').auth, true);
   console.log('API ok');
 
@@ -88,6 +91,7 @@ const server = http.createServer((req, res) => {
 
   const desk = await browser.newContext({ viewport: { width: 1200, height: 760 }, acceptDownloads: true });
   const pa = await desk.newPage(); pa.on('pageerror', (e) => errors.push(e.message));
+  let posts = 0; pa.on('request', (r) => { if (r.method() === 'POST') posts++; });
   pa.on('dialog', (d) => d.accept());
   await pa.addInitScript((u) => localStorage.setItem('pontaj.api', u), base);
   await pa.goto(base);
@@ -96,12 +100,17 @@ const server = http.createServer((req, res) => {
   await pa.fill('#fd', '2026-11-01'); await pa.fill('#fp', '2026-11-30');
   await pa.waitForSelector('td:has-text("Santier Nord")');
   assert.match(await pa.textContent('table'), /Ana Pop/); // pontajele ambilor angajati
+  assert.strictEqual(await pa.locator('text=Aproba').count(), 0);
   await pa.screenshot({ path: path.join(shots, 'admin-pontaje.png') });
   const [dl] = await Promise.all([pa.waitForEvent('download'), pa.click('#csv')]);
   assert.match(dl.suggestedFilename(), /pontaje_2026-11-01_2026-11-30\.csv/);
+  await pa.waitForFunction(() => !window.__pontaj.S.loading);
+  const before = posts;
   await pa.click('[data-t=rezumat]'); await pa.waitForSelector('td:has-text("TOTAL")');
+  await pa.selectOption('#fa', { label: 'Ana Pop' }); await pa.click('[data-t=pontaje]'); await pa.click('[data-t=rezumat]');
+  assert.strictEqual(posts, before, 'tab-urile si filtrul de angajat nu mai fac apeluri la server');
   await pa.screenshot({ path: path.join(shots, 'admin-rezumat.png') });
-  await pa.click('[data-t=angajati]'); await pa.waitForSelector('.entry');
+  await pa.selectOption('#fa', ''); await pa.click('[data-t=angajati]'); await pa.waitForSelector('.entry');
   await pa.screenshot({ path: path.join(shots, 'admin-angajati.png') });
 
   assert.deepStrictEqual(errors, [], 'erori JS: ' + errors.join('; '));

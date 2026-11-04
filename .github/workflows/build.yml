@@ -1,27 +1,45 @@
-name: Build EXE + APK
+name: Build si publica versiune noua
 
+# La fiecare modificare a aplicatiei pe main se construiesc EXE + APK si se publica automat un Release nou.
+# Aplicatia de pe PC (installer) si cea de pe telefon detecteaza singure versiunea noua.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths:
+      - 'www/**'
+      - 'electron/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - 'android-signing/**'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  VERSION: 1.1.${{ github.run_number }}
+
 jobs:
   windows-exe:
     runs-on: windows-latest
+    defaults: { run: { shell: bash } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: npm run dist:win
+      - run: npm version "$VERSION" --no-git-tag-version
+      - run: echo "window.APP_VERSION = '$VERSION';" > www/version.js
+      - run: npx electron-builder --win --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: Pontaj-Windows
           path: |
             dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
 
   android-apk:
     runs-on: ubuntu-latest
@@ -32,9 +50,18 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
       - run: npm ci
+      - run: echo "window.APP_VERSION = '$VERSION';" > www/version.js
       - run: npx cap add android
       - run: npx cap sync android
-      - name: Build APK (debug, semnat automat, instalabil direct)
+      - name: Versiune Android (versionCode creste la fiecare build, necesar pentru update)
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$VERSION\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+      - name: Cheie de semnare fixa (aceeasi la fiecare build, altfel Android nu accepta actualizarea)
+        run: |
+          mkdir -p ~/.android
+          cp android-signing/pontaj.keystore ~/.android/debug.keystore
+      - name: Build APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk Pontaj.apk
@@ -44,7 +71,6 @@ jobs:
           path: Pontaj.apk
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows-exe, android-apk]
     runs-on: ubuntu-latest
     steps:
@@ -52,4 +78,8 @@ jobs:
         with: { path: out, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ env.VERSION }}
+          name: Pontaj ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
           files: out/*
