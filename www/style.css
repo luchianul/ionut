@@ -52,3 +52,11 @@ td.n,th.n{text-align:right;white-space:nowrap}
 #toast.show{opacity:1}
 .empty{text-align:center;color:var(--mut);padding:26px}
 .upd{position:sticky;top:0;z-index:30;background:#fef3c7;color:#78350f;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card.emp{cursor:pointer;margin:0;transition:box-shadow .15s,transform .15s}
+.card.emp:hover{box-shadow:0 4px 14px rgba(20,30,50,.15);transform:translateY(-1px)}
+.emp-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.emp-h h3{margin:0;font-size:18px}
+.emp-s{display:flex;gap:16px;margin:10px 0}.emp-s b{display:block;font-size:19px}.emp-s span{color:var(--mut);font-size:12px}
+.emp-top{display:flex;align-items:center;gap:12px;margin:6px 0}.emp-top h2{margin:0}
+.presets{display:flex;gap:6px;flex:2;min-width:230px}
+td.hr{font-size:17px;font-weight:700;white-space:nowrap}

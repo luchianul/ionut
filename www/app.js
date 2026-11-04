@@ -4,7 +4,7 @@
 
   const $app = document.getElementById('app');
   const LS = { api: 'pontaj.api', ses: 'pontaj.session' };
-  const S = { api: '', token: '', user: null, cfg: { moneda: 'EUR' }, tab: 'pontaje', employees: [], entries: [], filt: {}, loading: false, seq: 0 };
+  const S = { api: '', token: '', user: null, cfg: { moneda: 'EUR' }, tab: 'acasa', sel: '', employees: [], entries: [], filt: {}, loading: false, seq: 0 };
 
   /* ---------- utilitare ---------- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -171,7 +171,7 @@
   /* ---------- formular pontaj ---------- */
   function entryModal(entry) {
     const admin = S.user.rol === 'admin';
-    const e = entry || { data: isoDate(new Date()), ora_intrare: '', ora_iesire: '', adresa: '', km: '', parcare: '', angajat_id: admin ? S.filt.angajat_id || '' : S.user.id };
+    const e = entry || { data: isoDate(new Date()), ora_intrare: '', ora_iesire: '', adresa: '', km: '', parcare: '', angajat_id: admin ? S.sel || '' : S.user.id };
     const emps = S.employees.filter((x) => x.activ || x.id === e.angajat_id);
     const m = modal(`<h2>${entry ? 'Modifica pontaj' : 'Pontaj nou'}</h2>
       <form id="f">
@@ -257,24 +257,40 @@
     document.querySelectorAll('.entry').forEach((el) => { el.onclick = () => entryModal(list.find((x) => x.id === el.dataset.id)); });
   }
 
-  /* ---------- ecran admin ---------- */
-  const visible = () => S.entries.filter((x) => !S.filt.angajat_id || x.angajat_id === S.filt.angajat_id);
+  /* ---------- ecran admin: acasa = lista angajatilor, apoi pontajele unui angajat ---------- */
+  const WD = ['Du', 'Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sa'];
+  const fday = (s) => WD[new Date(s + 'T00:00:00').getDay()] + ' ' + fdate(s);
+  const visible = () => S.entries.filter((x) => !S.sel || x.angajat_id === S.sel);
 
-  function paintAdmin() {
-    const tabs = `<div class="tabs">${[['pontaje', 'Pontaje'], ['rezumat', 'Rezumat'], ['angajati', 'Angajati']].map(([k, v]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${v}</button>`).join('')}${ldHtml}</div>`;
-    if (S.tab === 'angajati') { renderEmployees(tabs); setLd(); return; }
-    const filters = `<div class="card filters">
-      <div><label style="margin-top:0">Angajat</label><select id="fa"><option value="">Toti</option>${S.employees.map((x) => `<option value="${x.id}" ${x.id === S.filt.angajat_id ? 'selected' : ''}>${esc(x.nume)}</option>`).join('')}</select></div>
+  function periodHtml() {
+    return `<div class="card filters">
       <div><label style="margin-top:0">De la</label><input type="date" id="fd" value="${S.filt.de}"></div>
       <div><label style="margin-top:0">Pana la</label><input type="date" id="fp" value="${S.filt.pana}"></div>
+      <div class="presets"><button class="btn sec sm" data-p="azi">Azi</button><button class="btn sec sm" data-p="luna">Luna asta</button><button class="btn sec sm" data-p="trecuta">Luna trecuta</button></div>
     </div>`;
-    shell(tabs + filters + (S.tab === 'rezumat' ? summaryHtml() : entriesHtml()), S.tab === 'pontaje' ? '<button class="btn fab" id="add">+ Pontaj</button>' : '');
+  }
+
+  function paintAdmin() {
+    const tabs = `<div class="tabs">${[['acasa', 'Angajati'], ['conturi', 'Conturi si tarife']].map(([k, v]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${v}</button>`).join('')}${ldHtml}</div>`;
+    if (S.tab === 'conturi') { renderEmployees(tabs); setLd(); return; }
+    const emp = S.sel ? S.employees.find((x) => x.id === S.sel) || { nume: (S.entries.find((x) => x.angajat_id === S.sel) || {}).angajat || '?' } : null;
+    shell(tabs + periodHtml() + (emp ? detailHtml(emp) : homeHtml()), '<button class="btn fab" id="add">+ Pontaj</button>');
     setLd(); bindTabs();
-    document.getElementById('fa').onchange = (ev) => { S.filt.angajat_id = ev.target.value; paint(); };   // fara reincarcare
     document.getElementById('fd').onchange = (ev) => { if (ev.target.value) { S.filt.de = ev.target.value; refresh(); } };
     document.getElementById('fp').onchange = (ev) => { if (ev.target.value) { S.filt.pana = ev.target.value; refresh(); } };
-    const add = document.getElementById('add'); if (add) add.onclick = () => entryModal(null);
+    document.querySelectorAll('[data-p]').forEach((b) => {
+      b.onclick = () => {
+        const t = new Date(), ym = isoDate(t).slice(0, 7);
+        if (b.dataset.p === 'azi') { S.filt.de = S.filt.pana = isoDate(t); }
+        else if (b.dataset.p === 'luna') Object.assign(S.filt, monthRange(ym));
+        else { const p = new Date(t.getFullYear(), t.getMonth() - 1, 1); Object.assign(S.filt, monthRange(isoDate(p).slice(0, 7))); }
+        refresh();
+      };
+    });
+    document.getElementById('add').onclick = () => entryModal(null);
     const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCsv;
+    const back = document.getElementById('back'); if (back) back.onclick = () => { S.sel = ''; paint(); };
+    document.querySelectorAll('[data-sel]').forEach((el) => { el.onclick = () => { S.sel = el.dataset.sel; paint(); window.scrollTo(0, 0); }; });
     document.querySelectorAll('[data-edit]').forEach((b) => { b.onclick = () => entryModal(S.entries.find((x) => x.id === b.dataset.edit)); });
     document.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = async () => {
@@ -286,37 +302,58 @@
   }
 
   function bindTabs() {
-    document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; paint(); }; });  // instant, din memorie
+    document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; S.sel = ''; paint(); }; });  // instant, din memorie
   }
 
-  function entriesHtml() {
-    const rows = visible(), t = sum(rows);
+  // pagina principala: cate un card pentru fiecare angajat
+  function homeHtml() {
+    const by = {};
+    S.entries.forEach((x) => { (by[x.angajat_id] = by[x.angajat_id] || []).push(x); });
+    const ids = S.employees.filter((e) => (e.activ && e.rol !== 'admin') || by[e.id]).map((e) => e.id);
+    Object.keys(by).forEach((id) => { if (ids.indexOf(id) < 0) ids.push(id); });
+    const today = isoDate(new Date());
+    const cards = ids.map((id) => {
+      const rows = by[id] || [], t = sum(rows), e = S.employees.find((x) => x.id === id) || { nume: rows[0] ? rows[0].angajat : '?' };
+      return { id, nume: e.nume, rows, t, live: rows.some((x) => !x.ora_iesire && x.data === today), last: rows[0] };
+    }).sort((a, b) => a.nume.localeCompare(b.nume));
+    const T = sum(S.entries);
     return `<div class="stats">
+        <div class="stat"><b>${cards.filter((c) => c.rows.length).length}</b><span>angajati cu pontaje</span></div>
+        <div class="stat"><b>${nr(T.ore)}</b><span>ore</span></div>
+        <div class="stat"><b>${nr(T.km, 1)}</b><span>km</span></div>
+        <div class="stat"><b>${money(T.total)}</b><span>total de plata</span></div>
+      </div>
+      <div class="actions" style="margin:6px 0"><button class="btn sec sm" id="csv">Export CSV (toti)</button></div>
+      ${cards.length ? `<div class="grid">${cards.map((c) => `
+        <div class="card emp" data-sel="${c.id}">
+          <div class="emp-h"><h3>${esc(c.nume)}</h3>${c.live ? '<span class="tag ok">pe santier acum</span>' : ''}</div>
+          <div class="emp-s"><div><b>${nr(c.t.ore)}</b><span>ore</span></div><div><b>${nr(c.t.km, 1)}</b><span>km</span></div><div><b>${money(c.t.total)}</b><span>total</span></div></div>
+          <div class="mut">${c.rows.length ? `${c.rows.length} pontaje · ultimul: ${fdate(c.last.data)}, ${esc(c.last.ora_intrare)}–${esc(c.last.ora_iesire) || '…'}` : 'niciun pontaj in perioada aleasa'}</div>
+        </div>`).join('')}</div>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Nu exista angajati. Adauga-i la „Conturi si tarife”.'}</div>`}`;
+  }
+
+  // pontajele unui singur angajat, cu ora de intrare si ora de iesire in coloane separate
+  function detailHtml(emp) {
+    const rows = visible(), t = sum(rows);
+    return `<div class="emp-top"><button class="btn sec sm" id="back">← Toti angajatii</button><h2>${esc(emp.nume)}</h2></div>
+      <div class="stats">
         <div class="stat"><b>${rows.length}</b><span>pontaje</span></div>
         <div class="stat"><b>${nr(t.ore)}</b><span>ore</span></div>
         <div class="stat"><b>${nr(t.km, 1)}</b><span>km</span></div>
-        <div class="stat"><b>${money(t.total)}</b><span>total</span></div>
+        <div class="stat"><b>${money(t.total)}</b><span>total de plata</span></div>
       </div>
       <div class="card scroll">
         <div class="actions" style="margin:0 0 8px"><button class="btn sec sm" id="csv">Export CSV</button></div>
-        ${rows.length ? `<table><thead><tr><th>Data</th><th>Angajat</th><th>Interval</th><th>Adresa</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th><th></th></tr></thead><tbody>
+        ${rows.length ? `<table><thead><tr><th>Data</th><th>Ora intrare</th><th>Ora iesire</th><th>Adresa santier</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th><th></th></tr></thead><tbody>
         ${rows.map((x) => `<tr>
-          <td>${fdate(x.data)}</td><td>${esc(x.angajat)}</td><td>${esc(x.ora_intrare)}–${esc(x.ora_iesire) || '…'}</td><td>${esc(x.adresa)}</td>
+          <td>${fday(x.data)}</td>
+          <td class="hr">${esc(x.ora_intrare)}</td>
+          <td class="hr">${x.ora_iesire ? esc(x.ora_iesire) : '<span class="tag live">in desfasurare</span>'}</td>
+          <td>${esc(x.adresa)}</td>
           <td class="n">${nr(x.ore)}</td><td class="n">${nr(x.km, 1)}</td><td class="n">${money(x.parcare)}</td><td class="n"><b>${money(x.total)}</b></td>
           <td class="n"><button class="btn sm sec" data-edit="${x.id}">Edit</button> <button class="btn sm bad" data-del="${x.id}">✕</button></td></tr>`).join('')}
-        </tbody></table>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Niciun pontaj in intervalul ales.'}</div>`}
+        </tbody></table>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Niciun pontaj in perioada aleasa.'}</div>`}
       </div>`;
-  }
-
-  function summaryHtml() {
-    const rowsAll = visible(), by = {};
-    rowsAll.forEach((x) => { (by[x.angajat_id] = by[x.angajat_id] || { nume: x.angajat, rows: [] }).rows.push(x); });
-    const rows = Object.values(by).map((g) => Object.assign({ nume: g.nume, n: g.rows.length }, sum(g.rows))).sort((a, b) => a.nume.localeCompare(b.nume));
-    const t = sum(rowsAll);
-    return `<div class="card scroll">${rows.length ? `<table><thead><tr><th>Angajat</th><th class="n">Pontaje</th><th class="n">Ore</th><th class="n">Km</th><th class="n">Parcare</th><th class="n">Total</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr><td>${esc(r.nume)}</td><td class="n">${r.n}</td><td class="n">${nr(r.ore)}</td><td class="n">${nr(r.km, 1)}</td><td class="n">${money(r.parcare)}</td><td class="n"><b>${money(r.total)}</b></td></tr>`).join('')}
-      <tr><td><b>TOTAL</b></td><td class="n"><b>${rowsAll.length}</b></td><td class="n"><b>${nr(t.ore)}</b></td><td class="n"><b>${nr(t.km, 1)}</b></td><td class="n"><b>${money(t.parcare)}</b></td><td class="n"><b>${money(t.total)}</b></td></tr>
-      </tbody></table>` : `<div class="empty">${S.loading ? 'Se incarca…' : 'Nimic in intervalul ales.'}</div>`}</div>`;
   }
 
   function exportCsv() {
@@ -325,7 +362,7 @@
     const lines = [head.map(q).join(';')].concat(visible().map((x) => [x.data, x.angajat, x.ora_intrare, x.ora_iesire, x.adresa, x.ore, x.km, x.parcare, x.tarif_h, x.tarif_km, x.total].map(q).join(';')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `pontaje_${S.filt.de}_${S.filt.pana}.csv`;
+    a.href = URL.createObjectURL(blob); a.download = `pontaje${S.sel ? '_' + (visible()[0] ? visible()[0].angajat.replace(/\s+/g, '-') : 'angajat') : ''}_${S.filt.de}_${S.filt.pana}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
   }
 
@@ -400,8 +437,8 @@
   /* ---------- pornire ---------- */
   function start() {
     if (!S.user) return renderLogin();
-    S.filt = S.user.rol === 'admin' ? Object.assign(monthRange(isoDate(new Date()).slice(0, 7)), { angajat_id: '' }) : { luna: isoDate(new Date()).slice(0, 7) };
-    S.tab = 'pontaje'; S.employees = []; S.entries = [];
+    S.filt = S.user.rol === 'admin' ? monthRange(isoDate(new Date()).slice(0, 7)) : { luna: isoDate(new Date()).slice(0, 7) };
+    S.tab = 'acasa'; S.sel = ''; S.employees = []; S.entries = [];
     refresh();
   }
 
