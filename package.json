@@ -24,12 +24,37 @@
   "build": {
     "appId": "ro.ionut.pontaj",
     "productName": "Pontaj",
-    "files": ["electron/**", "www/**", "package.json"],
-    "directories": { "output": "dist" },
-    "win": {
-      "target": [{ "target": "portable", "arch": ["x64"] }, { "target": "nsis", "arch": ["x64"] }],
-      "artifactName": "Pontaj-${version}-${target}.${ext}"
+    "files": [
+      "electron/**",
+      "www/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
     },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Pontaj-${version}-installer.exe"
+    },
+    "portable": {
+      "artifactName": "Pontaj-${version}-portable.exe"
+    }
   }
 }

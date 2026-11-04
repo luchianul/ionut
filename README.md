@@ -28,7 +28,7 @@ Fie editezi [`www/config.js`](www/config.js) și pui URL-ul în `API_URL` (recom
 
 În repo: **Actions → Build EXE + APK → Run workflow**. După câteva minute, în rularea respectivă, la **Artifacts** descarci:
 
-- `Pontaj-Windows`: `Pontaj-1.0.0-portable.exe` (se pornește direct) și `Pontaj-1.0.0-nsis.exe` (installer)
+- `Pontaj-Windows`: `Pontaj-1.0.0-portable.exe` (se pornește direct) și `Pontaj-1.0.0-installer.exe` (installer)
 - `Pontaj-Android`: `Pontaj.apk`
 
 Pentru o versiune publică pe pagina *Releases* creează un tag: `git tag v1.0.0 && git push origin v1.0.0`.
