@@ -1,54 +1,33 @@
-# Pontaj
+# Pontaj Ionuț — aplicație Windows (EXE) și Android (APK)
 
-Aplicație de pontaj pentru angajați: **EXE pentru Windows** (administrator) și **APK pentru Android** (angajați).
-Toate datele stau într-un **Google Sheets** al tău, deci toți văd aceleași informații.
+Este aceeași aplicație ca cea din Google Apps Script (Jurnal, Statistici, Facturi, Evidență Motorină, Suivi), fără parolă,
+dar instalabilă pe PC și telefon. Datele rămân în același Google Sheets, prin același `Code.gs`.
 
-- **Angajat**: se loghează, adaugă pontaje (data, ora intrare / ieșire, adresa șantierului, km, parcare), vede totalul lunii. Butoane „Intrare acum" / „Iesire acum".
-- **Administrator**: vede pontajele tuturor, filtrează pe angajat și perioadă, modifică / șterge, rezumat pe angajat, export CSV, creează și gestionează conturile angajaților și tarifele (tarif/oră, tarif/km).
-- **Total pontaj** = ore × tarif/oră + km × tarif/km + parcare. Tariful se copiază din profilul angajatului la crearea pontajului, deci modificările de tarif nu schimbă istoricul. Tura peste miezul nopții se calculează corect.
-- Angajatul nu poate seta tarife; își poate modifica sau șterge propriile pontaje. Nu există aprobare.
+## Cum funcționează
+- `www/index.html` = interfața ta originală (aceleași ecrane și funcții). Bibliotecile (Bootstrap, SweetAlert, confetti, fonturi) sunt incluse local în `www/vendor/`.
+- `www/gas-shim.js` înlocuiește `google.script.run` cu apeluri HTTPS către aplicația ta web Apps Script.
+- `apps-script/Api.gs` = singurul fișier nou de adăugat în proiectul tău Apps Script (expune aceleași funcții din `Code.gs` aplicațiilor APK/EXE).
+- `apps-script/Code.gs` = copia codului tău, neschimbat (folosit la teste).
 
-## 1. Pregătește Google Sheets (o singură dată, ~5 minute)
+## Instalare (o singură dată)
+1. În proiectul tău Apps Script: **+ → Script**, numește-l `Api` și lipește conținutul din [`apps-script/Api.gs`](apps-script/Api.gs).
+2. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**. Adresa `/exec` rămâne aceeași.
+3. Pune adresa `/exec` în [`www/config.js`](www/config.js) (`API_URL`) sau introdu-o în aplicație la prima pornire (se ține minte).
+4. Descarcă din **Releases**: `Pontaj-<versiune>-installer.exe` (Windows) și `Pontaj.apk` (Android).
 
-1. Creează un Google Sheets nou (de ex. „Pontaj").
-2. **Extensii → Apps Script**. Șterge codul existent și lipește tot conținutul din [`apps-script/Code.gs`](apps-script/Code.gs).
-3. În primele rânduri schimbă `ADMIN_PAROLA_INITIALA` cu parola ta de administrator.
-4. Alege funcția `setup` din bara de sus și apasă **Run**. Acceptă permisiunile cerute. Se creează foile `Angajati`, `Pontaje`, `Setari` și contul `admin`.
-5. **Deploy → New deployment → Web app**: *Execute as* = **Me**, *Who has access* = **Anyone**. Copiază URL-ul (se termină în `/exec`).
-6. Moneda se schimbă în foaia `Setari` (implicit `EUR`).
+Interfața web veche (cu `?p=...`) continuă să funcționeze neschimbat.
 
-> Cine are URL-ul nu are acces la date fără utilizator și parolă. Nu edita manual coloanele `salt` și `hash` din foaia `Angajati`; parolele se schimbă din aplicație.
-> Dacă modifici `Code.gs` mai târziu: **Deploy → Manage deployments → Edit → New version**.
+## Actualizări automate
+La fiecare push pe `main` care modifică aplicația (`www/`, `electron/` etc.) se construiesc EXE + APK și se publică un Release nou.
+- **Windows**: aplicația instalată caută singură versiuni noi (la pornire și din oră în oră) și te întreabă dacă repornești.
+- **Android**: la pornire apare bannerul „Actualizează" care descarcă APK-ul nou; îl instalezi peste cel vechi (datele sunt în Sheets, nu se pierd).
+- APK-ul este semnat cu o cheie fixă din `android-signing/` (necesar pentru ca Android să accepte actualizarea). Este potrivit pentru uz intern, nu pentru Google Play.
 
-## 2. Pune URL-ul în aplicație
+Dacă modifici `Code.gs` în Apps Script, fă din nou **New version** la deployment.
 
-Fie editezi [`www/config.js`](www/config.js) și pui URL-ul în `API_URL` (recomandat, înainte de build, ca angajații să nu îl scrie), fie îl introduci în aplicație la **Setări server** (ecranul de login).
-
-## 3. Build și actualizări automate
-
-La **fiecare push pe `main`** care modifică aplicația (`www/`, `electron/` etc.), GitHub construiește EXE + APK și publică automat un **Release** nou (`v1.1.N`) la [Releases](../../releases). Nu trebuie să faci nimic manual. Poți porni și manual: **Actions → Build si publica versiune noua → Run workflow**.
-
-- **Windows**: instalează o singură dată `Pontaj-<versiune>-installer.exe`. De acolo aplicația verifică singură Releases la pornire (și din oră în oră), descarcă versiunea nouă și te întreabă dacă repornești ca să o instaleze.
-- **Android**: instalează `Pontaj.apk` o singură dată. La pornire aplicația verifică Releases; dacă există o versiune mai nouă apare sus un banner **„Actualizează"** care descarcă APK-ul, iar tu îl instalezi peste cel vechi (datele nu se pierd). Android nu permite instalarea complet silențioasă în afara Google Play.
-- APK-ul este semnat cu o cheie fixă din `android-signing/` (aceeași la fiecare build, altfel Android nu acceptă actualizarea). Cheia este în repo, deci este potrivită pentru distribuție internă, nu pentru Google Play.
-
-Ca să schimbi ceva în aplicație: modifici fișierele din `www/`, faci push pe `main`, iar în câteva minute toți primesc update-ul. Dacă modifici `apps-script/Code.gs`, trebuie să-l lipești în Apps Script și să faci **Deploy → Manage deployments → Edit → New version**.
-
-## Dezvoltare locală
-
+## Dezvoltare
 ```bash
 npm install
-npm run start       # deschide aplicația desktop (Electron)
-npm run test:e2e    # test complet cu Google Sheets simulat (Code.gs real + interfața în Chromium)
+npm start          # aplicația desktop
+npm run test:e2e   # Code.gs + Api.gs reale peste un Sheets simulat + interfața în Chromium
 ```
-
-## Structură
-
-| Cale | Rol |
-|---|---|
-| `apps-script/Code.gs` | API pe Google Sheets (login, angajați, pontaje) |
-| `www/` | interfața (HTML/CSS/JS, fără dependențe), folosită și de EXE și de APK |
-| `electron/` | împachetare Windows |
-| `capacitor.config.json` | împachetare Android (proiectul `android/` se generează în build) |
-| `.github/workflows/build.yml` | build automat EXE + APK |
-| `test/` | teste cap-coadă |

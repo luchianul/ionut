@@ -2,7 +2,7 @@
   "name": "pontaj",
   "productName": "Pontaj",
   "version": "1.1.0",
-  "description": "Pontaj angajati - aplicatie Windows (EXE) si Android (APK), date in Google Sheets",
+  "description": "Pontaj Ionut - aplicatie Windows (EXE) si Android (APK), date in Google Sheets",
   "main": "electron/main.js",
   "author": "luchianul",
   "license": "UNLICENSED",

@@ -1,17 +1,1361 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ro">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1d4ed8">
-  <title>Pontaj</title>
-  <link rel="stylesheet" href="style.css">
+  <base target="_top">
+  <title>Pontaj Ionuț</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+  <link rel="stylesheet" href="vendor/fonts.css">
+  <script src="vendor/sweetalert2.all.min.js"></script>
+  <script src="vendor/confetti.browser.js"></script>
+
+  <style>
+    :root{
+      --primary:#4F46E5; --primary-dark:#4338CA; --primary-soft:#EEF2FF;
+      --cash:#10B981; --cash-soft:#D1FAE5;
+      --danger:#EF4444; --danger-soft:#FEE2E2;
+      --warn:#F59E0B; --warn-soft:#FEF3C7;
+      --sidebar-bg:#14112B; --sidebar-text:#9C97C4; --sidebar-text-active:#FFFFFF;
+      --bg:#F6F6FB; --card-bg:#FFFFFF;
+      --text-main:#111827; --text-muted:#6B7280; --border:#E7E7F0;
+      --mono:'JetBrains Mono', monospace;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0; background:var(--bg); font-family:'Inter',sans-serif; color:var(--text-main);
+      display:flex; min-height:100vh;
+    }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+    input[type=number]{ -moz-appearance:textfield; }
+    .num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+    /* ---------- SIDEBAR ---------- */
+    .sidebar{
+      width:250px; min-width:250px; background:var(--sidebar-bg); color:var(--sidebar-text);
+      display:flex; flex-direction:column; padding:26px 18px; position:sticky; top:0; height:100vh;
+    }
+    .brand{ padding:0 6px 26px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:22px; }
+    .brand-title{ font-size:19px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
+    .brand-sub{ font-size:11px; font-weight:600; color:#6E68A3; margin-top:2px; }
+    .brand-sub b{ color:#9C93FF; }
+    .side-nav{ display:flex; flex-direction:column; gap:4px; flex:1; }
+    .side-link{
+      display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:12px;
+      color:var(--sidebar-text); text-decoration:none; font-size:14px; font-weight:600; cursor:pointer;
+      transition:all .15s;
+    }
+    .side-link i{ font-size:17px; width:20px; text-align:center; }
+    .side-link:hover{ background:rgba(255,255,255,0.05); color:#fff; }
+    .side-link.active{ background:var(--primary); color:#fff; box-shadow:0 4px 14px rgba(79,70,229,0.45); }
+    .side-foot{ font-size:11px; color:#57517F; padding:10px 6px 0; border-top:1px solid rgba(255,255,255,0.08); margin-top:10px; }
+    .side-badge{ margin-left:auto; background:var(--danger); color:#fff; font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:20px; }
+
+    /* ---------- ALERTĂ FACTURI UITATE ---------- */
+    .alert-uitate{
+      background:var(--warn-soft); border:1px solid #FCD34D; color:#92400E; border-radius:16px;
+      padding:15px 20px; margin-bottom:22px; display:flex; align-items:center; justify-content:space-between;
+      gap:16px; font-size:13.5px;
+    }
+    .alert-uitate i{ color:#B45309; font-size:18px; }
+
+    /* ---------- MAIN ---------- */
+    .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+    .topbar{
+      position:sticky; top:0; z-index:900; background:rgba(246,246,251,0.9); backdrop-filter:blur(10px);
+      padding:22px 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border);
+    }
+    .topbar h2{ font-size:22px; font-weight:800; margin:0; letter-spacing:-0.3px; }
+    .topbar .sub{ font-size:12px; color:var(--text-muted); font-weight:500; margin-top:2px; }
+    .top-controls{ display:flex; align-items:center; gap:10px; }
+    .select-pill{
+      background:var(--primary-soft); color:var(--primary); font-weight:700; border:none; border-radius:10px;
+      padding:9px 14px; font-size:13px;
+    }
+    .btn-primary-glow{
+      background:var(--primary); border:none; color:#fff; font-weight:700; border-radius:10px; padding:9px 18px;
+      font-size:13px; box-shadow:0 6px 16px rgba(79,70,229,.35);
+    }
+    .btn-primary-glow:hover{ background:var(--primary-dark); color:#fff; }
+    .content{ padding:26px 32px 60px; }
+    .view-section{ display:none; }
+    .view-section.active{ display:block; animation:fadein .2s ease; }
+    @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+    /* ---------- SUMMARY CARDS ---------- */
+    .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+    .kpi-card{ background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:18px 20px; }
+    .kpi-label{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); }
+    .kpi-value{ font-family:var(--mono); font-size:24px; font-weight:700; margin-top:6px; }
+
+    /* ---------- LEDGER TABLE ---------- */
+    .ledger-card{ background:var(--card-bg); border:1px solid var(--border); border-radius:18px; overflow:hidden; }
+    table.ledger{ width:100%; border-collapse:collapse; font-size:13.5px; }
+    table.ledger thead th{
+      text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted);
+      font-weight:700; padding:13px 16px; border-bottom:1px solid var(--border); background:#FBFBFE;
+    }
+    table.ledger thead th.num{ text-align:right; }
+    table.ledger tbody td{ padding:13px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    table.ledger tbody tr:last-child td{ border-bottom:none; }
+    table.ledger tbody tr:hover{ background:#FAFAFF; }
+    table.ledger td.num{ text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+    .week-row td{ background:#F4F3FB; font-size:11px; font-weight:800; color:var(--primary); text-transform:uppercase;
+      letter-spacing:1px; padding:9px 16px; border-bottom:1px solid var(--border); }
+    .loc-cell{ display:flex; align-items:center; gap:6px; color:var(--text-main); max-width:240px; }
+    .loc-cell i{ color:var(--danger); flex-shrink:0; }
+    .badge-cash{ background:var(--cash-soft); color:var(--cash); font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px; }
+    .badge-fact{ background:var(--primary-soft); color:var(--primary); font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px; }
+    .row-actions{ display:flex; gap:6px; justify-content:flex-end; }
+    .icon-btn{
+      width:30px; height:30px; border-radius:9px; border:none; background:#F1F1F8; color:var(--text-muted);
+      display:inline-flex; align-items:center; justify-content:center; font-size:13px;
+    }
+    .icon-btn:hover{ background:var(--primary-soft); color:var(--primary); }
+    .icon-btn.danger:hover{ background:var(--danger-soft); color:var(--danger); }
+    .empty-state{ text-align:center; padding:70px 20px; color:var(--text-muted); }
+    .empty-state i{ font-size:34px; color:#D8D6EE; }
+
+    /* ---------- STATS GRID ---------- */
+    .week-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; }
+    .week-card{ background:var(--card-bg); border-radius:18px; padding:18px 20px; border:1px solid var(--border); }
+    .week-card .amount{ font-family:var(--mono); font-size:22px; font-weight:800; }
+    .week-meta{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-top:12px;
+      padding-top:12px; border-top:1px dashed var(--border); }
+
+    /* ---------- FACTURI ---------- */
+    .fact-layout{ display:grid; grid-template-columns:380px 1fr; gap:20px; align-items:start; }
+    .builder-card{ background:var(--card-bg); border:1px solid var(--border); border-radius:18px; padding:20px; position:sticky; top:96px; }
+    .sapt-line{ display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--border); }
+    .sapt-line:last-child{ border-bottom:none; }
+    .sapt-line input[type=checkbox]{ width:17px; height:17px; accent-color:var(--primary); flex-shrink:0; }
+    .status-pill{ font-size:10.5px; font-weight:800; padding:3px 10px; border-radius:20px; }
+    .status-Neplatit{ background:var(--danger-soft); color:var(--danger); }
+    .status-Partial{ background:var(--warn-soft); color:#B45309; }
+    .status-Platit{ background:var(--cash-soft); color:var(--cash); }
+
+    .modal-content{ border-radius:20px; border:none; }
+.modal-close-x { position:absolute; top:10px; right:12px; width:38px; height:38px; border:none; border-radius:50%; background:#F1F1F8; color:#6B7280; font-size:18px; display:flex; align-items:center; justify-content:center; z-index:5; }
+.modal-close-x:active { background:#E5E7EB; }
+    .form-label-sm{ font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:5px; }
+
+.suivi-frame { width:100%; height:calc(100vh - 150px); min-height:480px; border:0; border-radius:16px; background:#fff; }
+.side-link .side-badge#badge-suivi { background:var(--danger); }
+/* ================= MOBIL (sub 768px) ================= */
+#btn-toggle-factura{ display:none; }
+
+@media (max-width: 768px) {
+
+  /* Buton dropdown factură (doar telefon) */
+  #btn-toggle-factura{ display:flex; margin-bottom:12px; }
+  .titlu-factura-desktop{ display:none; }
+  #form-factura-dropdown{ display:none; }
+  #form-factura-dropdown.open{ display:block; }
+
+  body { display:block; padding-bottom:78px; }
+
+  /* Sidebar -> bară de navigare jos */
+  .sidebar {
+    position:fixed; top:auto; bottom:0; left:0; right:0;
+    width:100%; min-width:0; height:auto;
+    flex-direction:row; padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+    z-index:1000; border-top:1px solid rgba(255,255,255,0.1);
+  }
+  .brand, .side-foot { display:none; }
+  .side-nav { flex-direction:row; justify-content:space-around; gap:0; width:100%; flex:1; }
+  .side-link {
+    flex:1; flex-direction:column; justify-content:center; gap:3px;
+    padding:6px 2px; font-size:10px; text-align:center; position:relative;
+    line-height:1.15;
+  }
+  .side-link i { font-size:20px; width:auto; }
+  .side-link.active { box-shadow:none; }
+  .side-badge { position:absolute; top:0; right:14%; margin:0; font-size:9px; padding:1px 6px; }
+
+  /* Bara de sus */
+  .topbar { flex-direction:column; align-items:stretch; gap:10px; padding:12px 14px; }
+  .topbar h2 { font-size:18px; }
+  .top-controls { flex-wrap:wrap; gap:8px; }
+  .select-pill { flex:1 1 calc(50% - 4px); min-width:0; font-size:14px; padding:10px 12px; }
+  .btn-primary-glow { flex:1 1 calc(50% - 4px); padding:10px 8px; font-size:12px; white-space:nowrap; }
+
+  .content { padding:14px 12px 30px; }
+
+  /* Alertă facturi uitate */
+  .alert-uitate { flex-direction:column; align-items:flex-start; padding:12px 14px; }
+
+  /* Carduri statistici */
+  .kpi-row { grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi-card { padding:14px; }
+  .kpi-value { font-size:17px; }
+  .week-grid { grid-template-columns:1fr; }
+
+  /* Facturi: formular deasupra listei */
+  .fact-layout { grid-template-columns:1fr; }
+  .builder-card { position:static; }
+
+  /* Tabele -> carduri */
+  .ledger-card { background:transparent; border:none; border-radius:0; overflow:visible; }
+  table.ledger, table.ledger tbody { display:block; width:100%; }
+  table.ledger thead { display:none; }
+
+  table.ledger tbody tr {
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+    background:var(--card-bg); border:1px solid var(--border);
+    border-radius:14px; padding:12px 14px; margin-bottom:10px;
+  }
+  table.ledger tbody tr:hover { background:var(--card-bg); }
+  table.ledger tbody td { display:block; padding:0; border:none; font-size:13px; }
+  table.ledger td.num { text-align:left; }
+  table.ledger td:only-child { flex:1 1 100%; text-align:center; }
+
+  /* Rând de săptămână (separator) */
+  table.ledger tbody tr.week-row {
+    background:transparent; border:none; padding:0; margin:14px 0 6px;
+  }
+  table.ledger tbody tr.week-row td { background:transparent; padding:0; }
+
+  /* Jurnal: locația pe rând separat, butoanele în dreapta */
+  #tbody-jurnal tr:not(.week-row) td:nth-child(4) { flex:1 1 100%; order:5; }
+  #tbody-jurnal tr:not(.week-row) td:nth-child(9) { margin-left:auto; order:9; }
+  .loc-cell { max-width:100%; }
+
+  /* Facturi: ascund coloanele mai puțin importante */
+  #tbody-facturi tr td:nth-child(3),
+  #tbody-facturi tr td:nth-child(4),
+  #tbody-facturi tr td:nth-child(5) { display:none; }
+  #tbody-facturi tr td:last-child { margin-left:auto; }
+  #tbody-facturi tr td:only-child { display:block; }
+
+  /* Motorină */
+  #tbody-motorina tr td:last-child { margin-left:auto; }
+
+  .icon-btn { width:36px; height:36px; }
+  .empty-state { padding:40px 16px; }
+}
+
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-  <div id="toast" role="status"></div>
-  <script src="config.js"></script>
-  <script src="version.js"></script>
-  <script src="app.js"></script>
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-title" id="brandTitle">Pontaj Ionuț</div>
+      <div class="brand-sub">powered by <b>VerTech</b></div>
+    </div>
+    <nav class="side-nav">
+      <a class="side-link active" data-view="pontaje" onclick="switchView('pontaje', this)"><i class="bi bi-journal-text"></i> Jurnal</a>
+      <a class="side-link" data-view="stats" onclick="switchView('stats', this)"><i class="bi bi-bar-chart-fill"></i> Statistici</a>
+      <a class="side-link" data-view="facturi" onclick="switchView('facturi', this)"><i class="bi bi-receipt"></i> Facturi <span id="badge-facturi-uitate" class="side-badge" style="display:none;">0</span></a>
+      <a class="side-link" data-view="motorina" onclick="switchView('motorina', this)"><i class="bi bi-fuel-pump-fill"></i> Evidență Motorină</a>
+            <a class="side-link" data-view="suivi" onclick="switchView('suivi', this)"><i class="bi bi-clipboard-check"></i> Suivi <span id="badge-suivi" class="side-badge" style="display:none;">0</span></a>
+    </nav>
+    <div class="side-foot">Interfață desktop · v1.0</div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h2 id="pageTitle">Jurnal</h2>
+        <div class="sub" id="pageSub">Toate zilele lucrate, grupate pe săptămâni</div>
+      </div>
+      <div class="top-controls">
+        <select id="saptamanaSelector" class="select-pill" onchange="filtreazaDupaSaptamana()">
+          <option value="all">Toate săptămânile</option>
+        </select>
+        <select id="anSelector" class="select-pill" onchange="saptamanaAleasa=null; loadData()">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+        </select>
+        <button class="btn-primary-glow" onclick="deschideAdaugare()"><i class="bi bi-plus-lg me-1"></i>Adaugă zi</button>
+        <button class="btn-primary-glow" style="background:var(--cash); box-shadow:0 6px 16px rgba(16,185,129,.35);" onclick="deschideAdaugareFactura()"><i class="bi bi-fuel-pump me-1"></i>Adaugă Factură</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div id="global-alert" class="alert-uitate" style="display:none;"></div>
+      <div id="global-alert-mod" class="alert-uitate" style="display:none; background:var(--danger-soft); border-color:#FCA5A5; color:#991B1B;"></div>
+
+      <!-- ===== VIEW: JURNAL ===== -->
+      <div id="view-pontaje" class="view-section active">
+        <div class="ledger-card">
+          <table class="ledger">
+            <thead>
+              <tr>
+                <th>Ziua</th><th>Data</th><th>Interval</th><th>Locație</th>
+                <th class="num">Ore</th><th class="num">KM</th><th class="num">Parcare</th><th>Plată</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-jurnal">
+              <tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== VIEW: STATISTICI ===== -->
+      <div id="view-stats" class="view-section">
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label" style="color:var(--cash)">Încasat</div><div class="kpi-value" id="total-incasat">0.00 €</div></div>
+          <div class="kpi-card"><div class="kpi-label" style="color:var(--danger)">De încasat</div><div class="kpi-value" id="total-de-incasat">0.00 €</div></div>
+          <div class="kpi-card"><div class="kpi-label">Total ore</div><div class="kpi-value" id="total-ore">0h</div></div>
+          <div class="kpi-card"><div class="kpi-label">Total KM</div><div class="kpi-value" id="total-km">0km</div></div>
+        </div>
+        <div id="week-grid" class="week-grid"></div>
+      </div>
+
+      <!-- ===== VIEW: FACTURI ===== -->
+      <div id="view-facturi" class="view-section">
+        <div class="fact-layout">
+
+          <!-- Builder -->
+          <div class="builder-card">
+          <div class="fw-bold mb-3 titlu-factura-desktop" style="font-size:15px;"><i class="bi bi-receipt me-2 text-primary"></i>Factură nouă</div>
+            <button type="button" id="btn-toggle-factura" class="btn btn-primary w-100 fw-bold justify-content-between align-items-center" style="border-radius:14px; padding:14px 18px; font-size:15px;" onclick="toggleFormFactura()">
+              <span><i class="bi bi-receipt me-2"></i>Creează factură</span>
+              <i class="bi bi-chevron-down" id="chevron-form"></i>
+            </button>
+            <div id="form-factura-dropdown">
+            <div class="mb-3">
+              <div class="form-label-sm">Număr factură</div>
+              <input type="text" id="fact-numar" class="form-control" placeholder="ex: Factură #1">
+            </div>
+            <div class="form-label-sm mb-2">Selectează săptămânile</div>
+            <div id="sapt-list" style="border:1px solid var(--border); border-radius:12px; max-height:280px; overflow-y:auto;"></div>
+
+            <div id="total-preview" style="display:none; background:var(--primary-soft); border-radius:12px; padding:13px 15px; margin:14px 0;">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div style="font-size:11px; color:var(--primary); font-weight:700;" id="preview-label">0 săptămâni</div>
+                  <div class="num" style="font-size:22px; font-weight:800;" id="preview-total">0.00 €</div>
+                </div>
+                <div style="font-size:12px; color:var(--text-muted); text-align:right;" class="num">
+                  <div id="preview-ore">0h</div>
+                  <div id="preview-km">0km</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <div class="form-label-sm">Observații (opțional)</div>
+              <textarea id="fact-obs" class="form-control" rows="2"></textarea>
+            </div>
+            <button class="btn btn-success w-100 fw-bold" style="border-radius:12px; padding:12px;" onclick="creeazaFactura()">
+              <i class="bi bi-check-circle me-2"></i>Salvează factura
+            </button>
+            </div>
+          </div>
+
+          <!-- List -->
+          <div class="ledger-card">
+            <table class="ledger">
+              <thead>
+                <tr>
+                  <th>Factură</th><th>Săptămâni</th><th>Data</th>
+                  <th class="num">Ore</th><th class="num">KM</th><th class="num">Total</th>
+                  <th class="num">Avans</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-facturi">
+                <tr><td colspan="9" class="text-center text-muted py-5">Nicio factură creată încă.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+       <!-- ===== VIEW: SUIVI (aplicația VerTech) ===== -->
+      <div id="view-suivi" class="view-section">
+        <iframe id="suivi-frame" class="suivi-frame"
+          data-src="https://script.google.com/macros/s/AKfycbzmllvljiDAE50xaaLQJDxY94ef63_Ru0HjCtX2kv_GZmcLR_g7lR_r2nWjk-F0PRc83A/exec?p=ioan"></iframe>
+      </div>   
+
+    <!-- ===== VIEW: MOTORINĂ ===== -->
+<div id="view-motorina" class="view-section">
+  <div class="kpi-row">
+  <div class="kpi-card"><div class="kpi-label">Total KM (an)</div><div class="kpi-value" id="mot-total-km">0km</div></div>
+  <div class="kpi-card"><div class="kpi-label" style="color:var(--primary)">Total € facturat pe KM (SumKM)</div><div class="kpi-value" id="mot-total-sumkm">0.00 €</div></div>
+  <div class="kpi-card"><div class="kpi-label" style="color:var(--danger)">Total facturi carburant</div><div class="kpi-value" id="mot-total-facturi">0.00 €</div></div>
+  <div class="kpi-card"><div class="kpi-label" style="color:var(--cash)">Profit net (SumKM - Carburant)</div><div class="kpi-value" id="mot-profit-net">0.00 €</div></div>
+</div>
+  <div class="ledger-card">
+    <table class="ledger">
+      <thead><tr><th>Nume factură</th><th>Data</th><th class="num">Sumă</th><th></th></tr></thead>
+      <tbody id="tbody-motorina"><tr><td colspan="4" class="text-center text-muted py-5">Nicio factură de carburant adăugată.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ADAUGĂ / EDITEAZĂ ZI ================= -->
+  <div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-4">
+          <button type="button" class="modal-close-x" data-bs-dismiss="modal" aria-label="Închide"><i class="bi bi-x-lg"></i></button>
+<h4 id="modalTitle" class="fw-bold mb-4">Adaugă Zi</h4>
+          <form id="fMain">
+            <div class="mb-3"><label class="form-label-sm">Data</label><input type="date" id="data" class="form-control" required></div>
+            <div class="row mb-3">
+              <div class="col"><label class="form-label-sm">Ora Intrare</label><input type="time" id="intrare" class="form-control"></div>
+              <div class="col"><label class="form-label-sm">Ora Plecare</label><input type="time" id="iesire" class="form-control"></div>
+            </div>
+            <div class="mb-3"><label class="form-label-sm">Locație</label><input type="text" id="strada" class="form-control"></div>
+            <div class="row mb-3">
+              <div class="col"><label class="form-label-sm">KM</label><input type="number" id="km" class="form-control"></div>
+              <div class="col"><label class="form-label-sm">Parcare (€)</label><input type="number" id="parcare" class="form-control" step="0.01"></div>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="isCash">
+              <label class="form-check-label fw-bold" for="isCash">Plată CASH</label>
+            </div>
+            <div class="row mb-4">
+              <div class="col"><label class="form-label-sm">€/H</label><input type="number" id="tH" class="form-control" value="30"></div>
+              <div class="col"><label class="form-label-sm">€/KM</label><input type="number" id="tK" class="form-control" value="0.45"></div>
+            </div>
+            <button type="button" id="btnS" onclick="execSalveaza()" class="btn btn-primary w-100 p-3 fw-bold">SALVEAZĂ</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDITEAZĂ FACTURĂ ================= -->
+  <div class="modal fade" id="editFacturaModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-4">
+          <h4 class="fw-bold mb-4">Editează Factura</h4>
+          <div class="mb-3"><label class="form-label-sm">Număr factură</label><input type="text" id="edit-fact-numar" class="form-control"></div>
+          <div class="mb-3"><label class="form-label-sm">Observații</label><textarea id="edit-fact-obs" class="form-control" rows="3"></textarea></div>
+          <input type="hidden" id="edit-fact-row">
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-secondary flex-fill fw-bold" data-bs-dismiss="modal">Anulează</button>
+            <button class="btn btn-primary flex-fill fw-bold" onclick="salveazaEditFactura()"><i class="bi bi-check-circle me-1"></i>Salvează</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: AVANS / PLATĂ FACTURĂ ================= -->
+  <div class="modal fade" id="avansModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-4">
+          <h4 class="fw-bold mb-1">Încasare factură</h4>
+          <div class="text-muted small mb-4" id="avans-numar-fact">—</div>
+          <div class="mb-3">
+            <label class="form-label-sm">Sumă totală</label>
+            <div class="num fw-bold" style="font-size:20px;" id="avans-total">0.00 €</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label-sm">Avans încasat (€)</label>
+            <input type="number" id="avans-suma" class="form-control" step="0.01" min="0">
+          </div>
+          <input type="hidden" id="avans-row">
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-secondary flex-fill fw-bold" data-bs-dismiss="modal">Anulează</button>
+            <button class="btn btn-outline-success flex-fill fw-bold" onclick="salveazaAvans(true)">Plătit integral</button>
+            <button class="btn btn-primary flex-fill fw-bold" onclick="salveazaAvans(false)">Salvează avans</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="motorinaModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body p-4">
+        <h4 class="fw-bold mb-4"><i class="bi bi-fuel-pump-fill me-2" style="color:var(--cash);"></i>Adaugă Factură Carburant</h4>
+        <div class="mb-3">
+          <label class="form-label-sm">Nume factură</label>
+          <input type="text" id="mot-nume" class="form-control" placeholder="ex: OMV 12.03.2026">
+        </div>
+        <div class="mb-4">
+          <label class="form-label-sm">Sumă (€)</label>
+          <input type="number" id="mot-suma" class="form-control" step="0.01" placeholder="0.00">
+        </div>
+        <button type="button" class="btn w-100 p-3 fw-bold text-white" style="background:var(--cash); border-radius:12px;" onclick="salveazaFacturaCarburantUI()">SALVEAZĂ</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ================= MODAL: EDITEAZĂ FACTURĂ MOTORINĂ ================= -->
+<div class="modal fade" id="editMotorinaModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body p-4">
+
+        <h4 class="fw-bold mb-4">
+          <i class="bi bi-fuel-pump-fill me-2" style="color:var(--cash);"></i>
+          Editează Factură Carburant
+        </h4>
+
+        <div class="mb-3">
+          <label class="form-label-sm">Nume factură</label>
+          <input type="text" id="edit-mot-nume" class="form-control">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label-sm">Sumă (€)</label>
+          <input type="number" id="edit-mot-suma" class="form-control" step="0.01">
+        </div>
+
+        <input type="hidden" id="edit-mot-row">
+
+        <div class="d-flex gap-2 mt-4">
+          <button
+            class="btn btn-secondary flex-fill fw-bold"
+            data-bs-dismiss="modal">
+            Anulează
+          </button>
+
+          <button
+            class="btn btn-primary flex-fill fw-bold"
+            onclick="salveazaEditMotorina()">
+            <i class="bi bi-check-circle me-1"></i>
+            Salvează
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/bootstrap.bundle.min.js"></script>
+<script src="config.js"></script>
+<script src="version.js"></script>
+<script src="gas-shim.js"></script>
+<script src="shell.js"></script>
+<script>
+  let modalObj, editFacturaModalObj, avansModalObj;
+  let motorinaModalObj, editMotorinaModalObj;
+  let currentEditIdx = null;
+  let globalData = [], statsGlobale = [], facturiData = [];
+  let facturiSelectate = new Set();
+let saptamanaAleasa = null;
+
+  window.onload = () => {
+  modalObj = new bootstrap.Modal(document.getElementById('addModal'));
+  motorinaModalObj = new bootstrap.Modal(document.getElementById('motorinaModal'));
+  editFacturaModalObj = new bootstrap.Modal(document.getElementById('editFacturaModal'));
+  avansModalObj = new bootstrap.Modal(document.getElementById('avansModal'));
+  editMotorinaModalObj = new bootstrap.Modal(document.getElementById('editMotorinaModal'));
+  loadData();
+    checkSuiviBadge();
+  setInterval(checkSuiviBadge, 60000);
+};
+
+
+  // ---------- NAV ----------
+  function switchView(view, el){
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.side-link').forEach(n => n.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    el.classList.add('active');
+
+const titles = { pontaje:'Jurnal', stats:'Statistici', facturi:'Facturi', motorina:'Evidență Motorină', suivi:'Suivi chantiers' };
+const subs = {
+  pontaje:'Toate zilele lucrate, grupate pe săptămâni',
+  stats:'Situația plăților pe săptămâni',
+  facturi:'Creează și gestionează facturile',
+  motorina:'Total KM, rată medie și facturi de carburant', suivi:'Lista comună de șantiere'
+};
+    document.getElementById('pageTitle').innerText = titles[view];
+    document.getElementById('pageSub').innerText = subs[view];
+    document.getElementById('saptamanaSelector').style.display = (view === 'pontaje') ? 'inline-block' : 'none';
+
+    if (view === 'facturi') {
+      renderChipsFacturi(statsGlobale);
+      loadFacturi();
+    }
+    if (view === 'motorina') {
+  loadMotorina();
+}
+    if (view === 'suivi') {
+      const fr = document.getElementById('suivi-frame');
+      if (!fr.getAttribute('src')) fr.setAttribute('src', fr.getAttribute('data-src'));
+    } else {
+      checkSuiviBadge();
+    }
+  }
+
+  // ---------- LOAD ----------
+  function loadData(){
+    const an = document.getElementById('anSelector').value;
+    document.getElementById('brandTitle').innerText = 'Pontaj Ionuț ' + an;
+
+    Swal.fire({ title:'Se încarcă datele...', allowOutsideClick:false, showConfirmButton:false, didOpen: () => Swal.showLoading() });
+
+    google.script.run
+      .withSuccessHandler(data => {
+        globalData = data.istoric;
+        statsGlobale = data.statistici;
+        populeazaSaptamani(globalData);
+        filtreazaDupaSaptamana();
+        renderStats(statsGlobale);
+        Swal.close();
+        verificaFacturiUitate(an);
+      })
+      .withFailureHandler(err => { Swal.close(); Swal.fire({ icon:'error', title:'Eroare la încărcare', text: err.message }); })
+      .getAppData(an);
+  }
+
+  // ---------- VERIFICARE SĂPTĂMÂNI NEFACTURATE ----------
+  let pendingAutoSelect = null;
+
+  function verificaFacturiUitate(an){
+    google.script.run
+      .withSuccessHandler(data => {
+        facturiData = data;
+        marcheazaFacturatePeStats();
+        afiseazaAlertaModificate();
+        afiseazaAlertaFacturiUitate();
+      })
+      .getFacturi(an);
+  }
+
+  function marcheazaFacturatePeStats(){
+    const saptFacturate = new Set();
+    facturiData.forEach(f => String(f[2]).split(',').forEach(s => saptFacturate.add(s.trim())));
+    statsGlobale.forEach(s => s._facturat = saptFacturate.has(String(s[6])));
+  }
+
+  function getWeekFromDate(d){
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    return Math.ceil((((d - new Date(Date.UTC(d.getUTCFullYear(),0,1))) / 86400000) + 1) / 7);
+  }
+
+  function getSaptamaniUitate(){
+    const azi = new Date();
+    const anCurent = azi.getFullYear();
+    const saptCurenta = getWeekFromDate(azi);
+    return statsGlobale.filter(s => {
+      if (s._facturat) return false;
+      if (s._isCash) return false; // săptămânile plătite cash nu se facturează
+      const an = parseInt(s[7]);
+      const sapt = parseInt(s[6]);
+      if (an < anCurent) return true;
+      if (an === anCurent && sapt < saptCurenta) return true;
+      return false; // săptămâna curentă sau viitoare - încă nu e cazul
+    });
+  }
+
+  function afiseazaAlertaFacturiUitate(){
+    const uitate = getSaptamaniUitate();
+    const banner = document.getElementById('global-alert');
+    const badge = document.getElementById('badge-facturi-uitate');
+
+    if (uitate.length === 0){
+      banner.style.display = 'none';
+      badge.style.display = 'none';
+      return;
+    }
+
+    badge.style.display = 'inline-block';
+    badge.innerText = uitate.length;
+
+    const listaText = uitate.map(s => 'Săpt. ' + s[6]).join(', ');
+    const plural = uitate.length === 1;
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div><b>${uitate.length} săptămân${plural?'ă':'i'} nefacturat${plural?'ă':'e'}</b> — ${listaText}</div>
+      </div>
+      <button class="btn btn-sm btn-warning fw-bold" onclick="mergiLaFacturiUitate()">Facturează acum</button>
+    `;
+  }
+
+  function mergiLaFacturiUitate(){
+    pendingAutoSelect = getSaptamaniUitate().map(s => String(s[6]));
+    document.querySelector('.side-link[data-view="facturi"]').click();
+  }
+
+  // ---------- FACTURI MODIFICATE DIN JURNAL ----------
+  function numF(v){ return parseFloat(String(v).replace(',', '.')) || 0; }
+
+  // Compară totalurile salvate în factură cu cele actuale din jurnal (Sheet2)
+  function verificaFactura(f){
+    const sapt = String(f[2]).split(',').map(s => s.trim());
+    let h = 0, km = 0, prk = 0, tot = 0;
+    statsGlobale.forEach(s => {
+      if (sapt.includes(String(s[6]))){
+        h += numF(s[1]); km += numF(s[2]); prk += numF(s[8]); tot += numF(s[5]);
+      }
+    });
+    const modificata =
+      Math.abs(tot - numF(f[6])) > 0.01 ||
+      Math.abs(h - numF(f[3])) > 0.01 ||
+      Math.round(km) !== Math.round(numF(f[4]));
+    return { modificata, h, km, prk, tot };
+  }
+
+  function afiseazaAlertaModificate(){
+    const banner = document.getElementById('global-alert-mod');
+    const lista = facturiData.filter(f => verificaFactura(f).modificata);
+    if (lista.length === 0){ banner.style.display = 'none'; return; }
+    const nume = lista.map(f => '<b>' + f[1] + '</b>').join(', ');
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-octagon-fill" style="color:#B91C1C;"></i>
+        <div><b>Atenție!</b> Jurnalul a fost modificat după emiterea facturii: ${nume}. Totalul din factură nu mai corespunde.</div>
+      </div>
+      <button class="btn btn-sm btn-danger fw-bold" onclick="document.querySelector('.side-link[data-view=facturi]').click()">Vezi facturile</button>
+    `;
+  }
+
+  function confirmaActualizareFactura(row){
+    const f = facturiData.find(x => x[12] === row);
+    if (!f) return;
+    const c = verificaFactura(f);
+    Swal.fire({
+      title:'Actualizezi factura?',
+      html:`<b>${f[1]}</b><br><br>
+            Total: ${numF(f[6]).toFixed(2)} € → <b>${c.tot.toFixed(2)} €</b><br>
+            Ore: ${numF(f[3]).toFixed(1)}h → <b>${c.h.toFixed(1)}h</b><br>
+            KM: ${numF(f[4]).toFixed(0)} → <b>${c.km.toFixed(0)}</b>`,
+      icon:'question', showCancelButton:true, confirmButtonText:'Da, actualizează', cancelButtonText:'Nu'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler(() => {
+          Swal.fire({ icon:'success', title:'Factură actualizată!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+          loadFacturi();
+        })
+        .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+        .actualizeazaFactura({ row, numar: f[1], totalH: c.h.toFixed(2), totalKM: c.km.toFixed(0), totalParcare: c.prk.toFixed(2), total: c.tot.toFixed(2) });
+    });
+  }
+
+  // ---------- JURNAL (TABEL) ----------
+  function renderJurnal(items){
+    const tbody = document.getElementById('tbody-jurnal');
+    tbody.innerHTML = '';
+    if (!items || items.length === 0){
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="bi bi-journal-x d-block mb-2"></i>Nicio înregistrare găsită.</div></td></tr>`;
+      return;
+    }
+    let lastW = null;
+    items.forEach(r => {
+      const currW = getWeek(r[1]);
+      if (lastW !== currW){
+        tbody.innerHTML += `<tr class="week-row"><td colspan="9">Săptămâna ${currW}</td></tr>`;
+        lastW = currW;
+      }
+      const isCash = String(r[8]).toLowerCase() === "true";
+      tbody.innerHTML += `
+        <tr>
+          <td class="fw-semibold">${r[0]}</td>
+          <td class="text-muted">${r[1]}</td>
+          <td class="num">${r[2] || '—'} - ${r[3] || '—'}</td>
+          <td><div class="loc-cell"><i class="bi bi-geo-alt-fill"></i><span class="text-truncate">${r[4] || 'Șantier nespecificat'}</span></div></td>
+          <td class="num">${r[5]}h</td>
+          <td class="num">${r[6]}km</td>
+          <td class="num">${parseFloat(r[9]||0).toFixed(2)}€</td>
+          <td>${isCash ? '<span class="badge-cash">CASH</span>' : '<span class="text-muted small">factură</span>'}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" onclick="pregatesteEdit(${r[12]})"><i class="bi bi-pencil-square"></i></button>
+<button class="icon-btn danger" onclick="confirmSterge(${r[12]},'${r[1]}',${r[5]},${r[6]},${r[9]})"><i class="bi bi-trash3"></i></button>
+            </div>
+          </td>
+        </tr>`;
+    });
+  }
+
+  // ---------- STATISTICI ----------
+  function renderStats(stats){
+    const grid = document.getElementById('week-grid');
+    let sumaIncasata = 0, sumaDeIncasat = 0, totalOre = 0, totalKm = 0;
+
+    if (!stats || stats.length === 0){
+      grid.innerHTML = `<div class="empty-state"><i class="bi bi-bar-chart d-block mb-2"></i>Fără statistici pentru acest an.</div>`;
+      document.getElementById('total-incasat').innerText = '0.00 €';
+      document.getElementById('total-de-incasat').innerText = '0.00 €';
+      document.getElementById('total-ore').innerText = '0h';
+      document.getElementById('total-km').innerText = '0km';
+      return;
+    }
+
+    let html = '';
+    stats.forEach(s => {
+      const valoare = s[5] ? parseFloat(String(s[5]).replace(',', '.')) : 0;
+      const estePlatit = String(s[9]).trim().toLowerCase() === "platit";
+      totalOre += parseFloat(s[1] || 0);
+      totalKm += parseFloat(s[2] || 0);
+
+      const saptNr = String(s[6]);
+      const zileSapt = globalData.filter(r => String(getWeek(r[1])) === saptNr);
+      const esteCash = zileSapt.length > 0 && zileSapt.every(r => String(r[8]).toLowerCase() === "true");
+      s._isCash = esteCash;
+
+      if (estePlatit) sumaIncasata += valoare; else sumaDeIncasat += valoare;
+
+      const culoareText = estePlatit ? 'var(--cash)' : 'var(--danger)';
+      const borderCard = estePlatit ? '#bbf7d0' : '#fecaca';
+
+      html += `
+        <div class="week-card" style="border-color:${borderCard};">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="text-muted small fw-bold">SĂPTĂMÂNA ${s[6]}</div>
+              <div class="amount" style="color:${culoareText};">${valoare.toFixed(2)} €</div>
+            </div>
+            ${!estePlatit
+              ? `<button class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" onclick="confirmaPlata('${s[6]}')">Încasează</button>`
+              : `<span class="badge-cash"><i class="bi bi-check-circle-fill me-1"></i>Plătit</span>`}
+          </div>
+          <div class="week-meta num">
+            <span><i class="bi bi-clock"></i> ${s[1]}h</span>
+            <span><i class="bi bi-speedometer2"></i> ${s[2]}km</span>
+            <span><i class="bi bi-p-circle"></i> ${s[8] || 0}€</span>
+          </div>
+        </div>`;
+    });
+
+    grid.innerHTML = html;
+    document.getElementById('total-incasat').innerText = sumaIncasata.toFixed(2) + ' €';
+    document.getElementById('total-de-incasat').innerText = sumaDeIncasat.toFixed(2) + ' €';
+    document.getElementById('total-ore').innerText = totalOre.toFixed(1) + 'h';
+    document.getElementById('total-km').innerText = totalKm.toFixed(0) + 'km';
+  }
+
+  function confirmaPlata(saptamana){
+    const an = document.getElementById('anSelector').value;
+    Swal.fire({
+      title:'Confirmi încasarea?', text:`Săptămâna ${saptamana} va fi marcată ca plătită.`, icon:'question',
+      showCancelButton:true, confirmButtonColor:'var(--cash)', confirmButtonText:'Da, am primit banii!', cancelButtonText:'Anulează'
+    }).then(result => {
+      if (result.isConfirmed){
+        google.script.run.withSuccessHandler(() => {
+          confetti({ particleCount:150, spread:70, origin:{ y:0.6 } });
+          loadData();
+        }).marcheazaPlata(saptamana, an);
+      }
+    });
+  }
+
+  // ---------- ADAUGĂ / EDITEAZĂ ZI ----------
+  function deschideAdaugare(){
+  currentEditIdx = null;
+  document.getElementById('fMain').reset();
+  document.getElementById('data').valueAsDate = new Date();
+  document.getElementById('modalTitle').innerText = 'Adaugă Zi';
+  google.script.run
+    .withSuccessHandler(t => {
+      document.getElementById('tH').value = String(t.tH).replace(',', '.');
+      document.getElementById('tK').value = String(t.tK).replace(',', '.');
+      modalObj.show();
+    })
+    .withFailureHandler(() => modalObj.show())
+    .getTarife();
+}
+
+  function pregatesteEdit(idx){
+  let r = globalData.find(x => x[12] === idx);
+  if (!r) return;
+  currentEditIdx = idx;
+  document.getElementById('data').value = r[1];
+  document.getElementById('intrare').value = r[2];
+  document.getElementById('iesire').value = r[3];
+  document.getElementById('strada').value = r[4];
+  document.getElementById('km').value = r[6];
+  document.getElementById('parcare').value = r[9];
+  document.getElementById('isCash').checked = String(r[8]).toLowerCase() === "true";
+  document.getElementById('tH').value = String(r[10] || 30).replace(',', '.');
+  document.getElementById('tK').value = String(r[11] || 0.45).replace(',', '.');
+  document.getElementById('modalTitle').innerText = 'Editează Ziua';
+  modalObj.show();
+}
+
+  function execSalveaza(){
+    const btn = document.getElementById('btnS');
+    const dataVal = document.getElementById('data').value;
+    if (!dataVal) return Swal.fire({ icon:'warning', title:'Alege data!', toast:true, position:'top-end', showConfirmButton:false, timer:3000 });
+
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (currentEditIdx === null) {
+  google.script.run.salveazaTarife(
+    document.getElementById('tH').value,
+    document.getElementById('tK').value
+  );
+}
+    const dateParts = dataVal.split('-');
+    const ziuaRo = ["Duminică","Luni","Marți","Miercuri","Joi","Vineri","Sâmbătă"][new Date(dateParts[0], dateParts[1]-1, dateParts[2]).getDay()];
+
+    google.script.run
+      .withSuccessHandler(() => {
+        modalObj.hide(); loadData(); btn.disabled = false; btn.innerText = "SALVEAZĂ";
+        Swal.fire({ icon:'success', title:'Salvat!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+      })
+      .withFailureHandler(err => {
+        Swal.fire({ icon:'error', title:'Eroare', text: err.message });
+        btn.disabled = false; btn.innerText = "SALVEAZĂ";
+      })
+      .adaugaDate({
+        ridx: currentEditIdx, isCash: document.getElementById('isCash').checked, nume:"Ionut", data: dataVal, ziua: ziuaRo,
+        oraIntrare: document.getElementById('intrare').value, oraIesire: document.getElementById('iesire').value,
+        strada: document.getElementById('strada').value, km: document.getElementById('km').value,
+        parcare: document.getElementById('parcare').value, tarifH: document.getElementById('tH').value, tarifKm: document.getElementById('tK').value
+      });
+  }
+
+  function confirmSterge(idx, dS, h, km, prk){
+    Swal.fire({
+      title:'Ștergi ziua?', text:'Acțiunea este ireversibilă!', icon:'warning',
+      showCancelButton:true, confirmButtonColor:'var(--danger)', confirmButtonText:'Da, șterge!', cancelButtonText:'Nu'
+    }).then(result => {
+      if (result.isConfirmed){
+        google.script.run.withSuccessHandler(loadData)
+          .stergeRand(idx, dS, h, km, prk, document.getElementById('tH').value, document.getElementById('tK').value);
+      }
+    });
+  }
+
+  // ---------- FILTRU SĂPTĂMÂNĂ ----------
+  function populeazaSaptamani(data){
+    const select = document.getElementById('saptamanaSelector');
+    select.innerHTML = '<option value="all">Toate săptămânile</option>';
+    const saptamani = [...new Set(data.map(r => getWeek(r[1])))].sort((a,b) => a-b);
+    saptamani.forEach(s => select.innerHTML += `<option value="${s}">Săptămâna ${s}</option>`);
+
+    const lista = saptamani.map(String);
+    const saptCurenta = String(getWeekFromDate(new Date()));
+    const anSel = document.getElementById('anSelector').value;
+
+    let valoare = 'all';
+      if (saptamanaAleasa !== null && (saptamanaAleasa === 'all' || lista.includes(saptamanaAleasa))) {
+        valoare = saptamanaAleasa;
+    }   else if (anSel == new Date().getFullYear() && lista.includes(saptCurenta)) {
+    valoare = saptCurenta;
+    }
+    select.value = valoare;
+  }
+
+  function filtreazaDupaSaptamana(){
+    const val = document.getElementById('saptamanaSelector').value;
+saptamanaAleasa = val;
+    renderJurnal(val === 'all' ? globalData : globalData.filter(r => String(getWeek(r[1])) === val));
+  }
+
+  function getWeek(dStr){
+    const p = dStr.split('-');
+    let d = new Date(p[0], p[1]-1, p[2]);
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    return Math.ceil((((d - new Date(Date.UTC(d.getUTCFullYear(),0,1))) / 86400000) + 1) / 7);
+  }
+
+  // ---------- FACTURI: DROPDOWN (telefon) ----------
+  function toggleFormFactura(){
+    const dd = document.getElementById('form-factura-dropdown');
+    const chevron = document.getElementById('chevron-form');
+    const open = dd.classList.toggle('open');
+    chevron.className = open ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+  }
+
+  // ---------- FACTURI: BUILDER ----------
+  function renderChipsFacturi(stats){
+    statsGlobale = stats || [];
+    facturiSelectate.clear();
+    const container = document.getElementById('sapt-list');
+    container.innerHTML = '';
+    if (!stats || stats.length === 0){
+      container.innerHTML = '<p class="text-muted small text-center p-3 m-0">Nicio săptămână disponibilă.</p>';
+      updatePreview();
+      return;
+    }
+    stats.forEach(s => {
+      const val = s[5] ? parseFloat(String(s[5]).replace(',', '.')) : 0;
+      const sapt = s[6];
+      const ore = parseFloat(s[1]||0).toFixed(1);
+      const km = parseFloat(s[2]||0).toFixed(0);
+      const isFacturat = s._facturat === true;
+      const isCash = s._isCash === true;
+      const blocat = isFacturat || isCash;
+
+      let badge = '';
+      if (isFacturat) badge = '<span class="badge-fact" style="background:var(--danger-soft);color:var(--danger);margin-left:6px;">FACTURAT</span>';
+      else if (isCash) badge = '<span class="badge-cash" style="margin-left:6px;">CASH</span>';
+
+      container.innerHTML += `
+        <label class="sapt-line" style="cursor:${blocat?'default':'pointer'}; opacity:${blocat?'0.45':'1'};">
+          <input type="checkbox" id="chk-${sapt}" onchange="toggleSapt('${sapt}')" ${blocat?'disabled':''}>
+          <div class="flex-fill">
+            <div class="fw-bold" style="font-size:13px;">Săptămâna ${sapt}${badge}</div>
+            <div class="text-muted num" style="font-size:11px;">${ore}h · ${km}km</div>
+          </div>
+          <div class="num fw-bold" style="color:${isCash?'var(--cash)':'var(--primary)'};">${val.toFixed(2)} €</div>
+        </label>`;
+    });
+    updatePreview();
+  }
+
+  function toggleSapt(sapt){
+    const chk = document.getElementById('chk-' + sapt);
+    chk.checked ? facturiSelectate.add(sapt) : facturiSelectate.delete(sapt);
+    updatePreview();
+  }
+
+  function updatePreview(){
+    let totalEur = 0, totalH = 0, totalKM = 0;
+    statsGlobale.forEach(s => {
+      if (facturiSelectate.has(String(s[6]))){
+        totalEur += parseFloat(String(s[5]).replace(',', '.')) || 0;
+        totalH += parseFloat(s[1]) || 0;
+        totalKM += parseFloat(s[2]) || 0;
+      }
+    });
+    document.getElementById('total-preview').style.display = facturiSelectate.size > 0 ? 'block' : 'none';
+    document.getElementById('preview-label').innerText = `${facturiSelectate.size} săptămân${facturiSelectate.size===1?'ă':'i'} selectat${facturiSelectate.size===1?'ă':'e'}`;
+    document.getElementById('preview-total').innerText = totalEur.toFixed(2) + ' €';
+    document.getElementById('preview-ore').innerText = totalH.toFixed(1) + 'h';
+    document.getElementById('preview-km').innerText = totalKM.toFixed(0) + 'km';
+  }
+
+  function creeazaFactura(){
+    if (facturiSelectate.size === 0) return Swal.fire({ icon:'warning', title:'Selectează cel puțin o săptămână!', toast:true, position:'top-end', showConfirmButton:false, timer:2500 });
+    const numar = document.getElementById('fact-numar').value.trim();
+    if (!numar) return Swal.fire({ icon:'warning', title:'Completează numărul facturii!', toast:true, position:'top-end', showConfirmButton:false, timer:2500 });
+
+    let total=0, totalH=0, totalKM=0, totalPrk=0;
+    statsGlobale.forEach(s => {
+      if (facturiSelectate.has(String(s[6]))){
+        total += parseFloat(String(s[5]).replace(',', '.')) || 0;
+        totalH += parseFloat(s[1]) || 0;
+        totalKM += parseFloat(s[2]) || 0;
+        totalPrk += parseFloat(s[8]) || 0;
+      }
+    });
+
+    const an = document.getElementById('anSelector').value;
+    google.script.run
+      .withSuccessHandler(() => {
+        Swal.fire({ icon:'success', title:'Factură creată!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+        document.getElementById('fact-numar').value = '';
+        document.getElementById('fact-obs').value = '';
+        facturiSelectate.clear();
+        document.getElementById('form-factura-dropdown').classList.remove('open');
+        document.getElementById('chevron-form').className = 'bi bi-chevron-down';
+        loadFacturi();
+      })
+      .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+      .salveazaFactura({
+        numar, an, saptamani:[...facturiSelectate],
+        totalH: totalH.toFixed(2), totalKM: totalKM.toFixed(0), totalParcare: totalPrk.toFixed(2),
+        total: total.toFixed(2), observatii: document.getElementById('fact-obs').value
+      });
+  }
+
+  // ---------- FACTURI: LISTĂ ----------
+  function loadFacturi(){
+    const an = document.getElementById('anSelector').value;
+    google.script.run.withSuccessHandler(renderFacturi).getFacturi(an);
+  }
+
+  function renderFacturi(data){
+    facturiData = data || [];
+    afiseazaAlertaModificate();
+    const tbody = document.getElementById('tbody-facturi');
+
+    const saptFacturate = new Set();
+    facturiData.forEach(f => String(f[2]).split(',').forEach(s => saptFacturate.add(s.trim())));
+    statsGlobale.forEach(s => s._facturat = saptFacturate.has(String(s[6])));
+    renderChipsFacturi(statsGlobale);
+    afiseazaAlertaFacturiUitate();
+
+    if (pendingAutoSelect){
+      pendingAutoSelect.forEach(sapt => {
+        const chk = document.getElementById('chk-' + sapt);
+        if (chk && !chk.disabled){ chk.checked = true; facturiSelectate.add(sapt); }
+      });
+      updatePreview();
+      pendingAutoSelect = null;
+    }
+
+    if (facturiData.length === 0){
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="bi bi-receipt d-block mb-2"></i>Nicio factură creată încă.</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = [...facturiData].reverse().map(f => {
+      const row = f[12];
+      const chk = verificaFactura(f);
+      const avans = parseFloat(f[10]) || 0;
+      const status = (f[11] || 'Neplatit').trim();
+      const statusClass = 'status-' + (status === 'Platit' ? 'Platit' : status === 'Partial' ? 'Partial' : 'Neplatit');
+      const statusLabel = status === 'Platit' ? 'Plătit' : status === 'Partial' ? 'Parțial' : 'Neplătit';
+      return `
+        <tr>
+          <td class="fw-semibold">${f[1]}</td>
+          <td class="text-muted small">Sapt. ${f[2]}</td>
+          <td class="text-muted small">${f[8]}</td>
+          <td class="num">${f[3]}h</td>
+          <td class="num">${f[4]}km</td>
+          <td class="num fw-bold">${parseFloat(f[6]).toFixed(2)}€${chk.modificata ? `<div style="font-size:10.5px;color:var(--danger);font-weight:700;white-space:nowrap;">⚠ în jurnal: ${chk.tot.toFixed(2)}€</div>` : ''}</td>
+          <td class="num">${avans.toFixed(2)}€</td>
+          <td><span class="status-pill ${statusClass}" style="cursor:pointer;" onclick="deschideAvans(${row},'${f[1]}',${f[6]},${avans})">${statusLabel}</span></td>
+          <td>
+            <div class="row-actions">
+              ${chk.modificata ? `<button class="icon-btn" style="background:var(--warn-soft);color:#B45309;" title="Actualizează factura cu valorile din jurnal" onclick="confirmaActualizareFactura(${row})"><i class="bi bi-arrow-repeat"></i></button>` : ''}
+              <button class="icon-btn" onclick='deschideEditFactura(${row})'><i class="bi bi-pencil-square"></i></button>
+              <button class="icon-btn danger" onclick="confirmStergeFactura(${row},'${f[1]}')"><i class="bi bi-trash3"></i></button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function deschideEditFactura(row){
+    const f = facturiData.find(x => x[12] === row);
+    if (!f) return;
+    document.getElementById('edit-fact-numar').value = f[1] || '';
+    document.getElementById('edit-fact-obs').value = f[9] || '';
+    document.getElementById('edit-fact-row').value = row;
+    editFacturaModalObj.show();
+  }
+
+  function salveazaEditFactura(){
+    const row = parseInt(document.getElementById('edit-fact-row').value);
+    const numar = document.getElementById('edit-fact-numar').value.trim();
+    if (!numar) return Swal.fire({ icon:'warning', title:'Completează numărul!', toast:true, position:'top-end', showConfirmButton:false, timer:2500 });
+
+    google.script.run
+      .withSuccessHandler(() => {
+        editFacturaModalObj.hide();
+        Swal.fire({ icon:'success', title:'Factură actualizată!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+        loadFacturi();
+      })
+      .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+      .editeazaFactura({ row, numar, observatii: document.getElementById('edit-fact-obs').value });
+  }
+
+  function confirmStergeFactura(row, numar){
+    Swal.fire({
+      title:'Ștergi factura?', text:`"${numar}" va fi ștearsă definitiv!`, icon:'warning',
+      showCancelButton:true, confirmButtonColor:'var(--danger)', confirmButtonText:'Da, șterge!', cancelButtonText:'Nu'
+    }).then(result => {
+      if (result.isConfirmed){
+        google.script.run
+          .withSuccessHandler(() => {
+            Swal.fire({ icon:'success', title:'Factură ștearsă!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+            loadFacturi();
+          })
+          .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+          .stergeFactura({ row });
+      }
+    });
+  }
+
+  // ---------- FACTURI: AVANS / ÎNCASARE ----------
+  function deschideAvans(row, numar, total, avansCurent){
+    document.getElementById('avans-numar-fact').innerText = numar;
+    document.getElementById('avans-total').innerText = parseFloat(total).toFixed(2) + ' €';
+    document.getElementById('avans-suma').value = avansCurent || '';
+    document.getElementById('avans-row').value = row;
+    avansModalObj.show();
+  }
+
+  function salveazaAvans(marcheazaPlatit){
+    const row = parseInt(document.getElementById('avans-row').value);
+    const avans = document.getElementById('avans-suma').value;
+    google.script.run
+      .withSuccessHandler(res => {
+        avansModalObj.hide();
+        if (res.status === 'Platit') confetti({ particleCount:120, spread:65, origin:{ y:0.6 } });
+        Swal.fire({ icon:'success', title:'Actualizat!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+        loadFacturi();
+      })
+      .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+      .salveazaAvansFactura({ row, avans, marcheazaPlatit });
+  }
+  function deschideAdaugareFactura(){
+  document.getElementById('mot-nume').value = '';
+  document.getElementById('mot-suma').value = '';
+  motorinaModalObj.show();
+}
+
+function salveazaFacturaCarburantUI(){
+  const nume = document.getElementById('mot-nume').value.trim();
+  const suma = document.getElementById('mot-suma').value;
+  if (!nume) return Swal.fire({ icon:'warning', title:'Completează numele facturii!', toast:true, position:'top-end', showConfirmButton:false, timer:2500 });
+  if (!suma || parseFloat(suma) <= 0) return Swal.fire({ icon:'warning', title:'Introdu o sumă validă!', toast:true, position:'top-end', showConfirmButton:false, timer:2500 });
+
+  const an = document.getElementById('anSelector').value;
+  google.script.run
+    .withSuccessHandler(() => {
+      motorinaModalObj.hide();
+      Swal.fire({ icon:'success', title:'Factură salvată!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+      loadMotorina();
+    })
+    .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+    .salveazaFacturaCarburant({ nume, suma, an });
+}
+
+function loadMotorina(){
+  const an = document.getElementById('anSelector').value;
+  google.script.run.withSuccessHandler(renderMotorina).getEvidentaMotorina(an);
+}
+
+function renderMotorina(data){
+  document.getElementById('mot-total-km').innerText = data.totalKm.toFixed(0) + 'km';
+  document.getElementById('mot-total-sumkm').innerText = data.totalIncasatKm.toFixed(2) + ' €';
+  document.getElementById('mot-total-facturi').innerText = data.totalFacturi.toFixed(2) + ' €';
+  document.getElementById('mot-profit-net').innerText = data.profitNet.toFixed(2) + ' €';
+
+  const tbody = document.getElementById('tbody-motorina');
+  if (!data.facturi || data.facturi.length === 0){
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">Nicio factură de carburant adăugată.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = [...data.facturi].reverse().map(f => `
+    <tr>
+      <td class="fw-semibold">${f[1]}</td>
+      <td class="text-muted small">${f[3]}</td>
+      <td class="num fw-bold" style="color:var(--danger);">${parseFloat(f[2]).toFixed(2)}€</td>
+      <td>
+  <div class="row-actions">
+
+    <button
+      class="icon-btn"
+      onclick="deschideEditMotorina(${f[5]}, '${String(f[1]).replace(/'/g, "\\'")}', ${f[2]})">
+      <i class="bi bi-pencil-square"></i>
+    </button>
+
+    <button
+      class="icon-btn danger"
+      onclick="confirmStergeMotorina(${f[5]}, '${String(f[1]).replace(/'/g, "\\'")}')">
+      <i class="bi bi-trash3"></i>
+    </button>
+
+  </div>
+</td>
+
+    </tr>`).join('');
+}
+
+function confirmStergeMotorina(row, nume){
+  Swal.fire({
+    title:'Ștergi factura?', text:`"${nume}" va fi ștearsă definitiv!`, icon:'warning',
+    showCancelButton:true, confirmButtonColor:'var(--danger)', confirmButtonText:'Da, șterge!', cancelButtonText:'Nu'
+  }).then(result => {
+    if (result.isConfirmed){
+      google.script.run
+        .withSuccessHandler(() => {
+          Swal.fire({ icon:'success', title:'Ștearsă!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+          loadMotorina();
+        })
+        .withFailureHandler(err => Swal.fire({ icon:'error', title:'Eroare', text: err.message }))
+        .stergeFacturaCarburant(row);
+    }
+  });
+}
+function deschideEditMotorina(row, nume, suma){
+  document.getElementById('edit-mot-nume').value = nume || '';
+  document.getElementById('edit-mot-suma').value = suma || '';
+  document.getElementById('edit-mot-row').value = row;
+
+  editMotorinaModalObj.show();
+}
+
+
+function salveazaEditMotorina(){
+  const row = parseInt(
+    document.getElementById('edit-mot-row').value,
+    10
+  );
+
+  const nume = document
+    .getElementById('edit-mot-nume')
+    .value
+    .trim();
+
+  const suma = parseFloat(
+    document.getElementById('edit-mot-suma').value
+  );
+
+  if (!nume){
+    return Swal.fire({
+      icon:'warning',
+      title:'Completează numele!',
+      toast:true,
+      position:'top-end',
+      showConfirmButton:false,
+      timer:2500
+    });
+  }
+
+  if (!suma || suma <= 0){
+    return Swal.fire({
+      icon:'warning',
+      title:'Introdu o sumă validă!',
+      toast:true,
+      position:'top-end',
+      showConfirmButton:false,
+      timer:2500
+    });
+  }
+
+  google.script.run
+    .withSuccessHandler(() => {
+
+      editMotorinaModalObj.hide();
+
+      Swal.fire({
+        icon:'success',
+        title:'Factură actualizată!',
+        toast:true,
+        position:'top-end',
+        showConfirmButton:false,
+        timer:2000
+      });
+
+      loadMotorina();
+    })
+
+    .withFailureHandler(err => {
+
+      Swal.fire({
+        icon:'error',
+        title:'Eroare la actualizare',
+        text: err && err.message
+          ? err.message
+          : String(err)
+      });
+
+    })
+
+    .editeazaMotorina({
+      row: row,
+      nume: nume,
+      suma: suma
+    });
+}
+function checkSuiviBadge() {
+  google.script.run
+    .withSuccessHandler(function (n) {
+      n = n || 0;
+      const b = document.getElementById('badge-suivi');
+      if (!b) return;
+      b.innerText = n;
+      b.style.display = n ? 'inline-block' : 'none';
+      b.title = n + ' matériel à commander';
+    })
+    .withFailureHandler(function () {})
+    .getSuiviBadge();
+}
+</script>
 </body>
 </html>
