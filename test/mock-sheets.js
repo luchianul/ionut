@@ -17,8 +17,8 @@ function load() {
       const grid = (f) => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => f(get(r + i, c + j))));
       const rg = {
         getValues: () => grid((x) => x),
-        getDisplayValues: () => grid((x) => String(x)),
-        getValue: () => get(r, c), getDisplayValue: () => String(get(r, c)),
+        getDisplayValues: () => grid((x) => (typeof x === 'number' ? String(x).replace('.', ',') : String(x))), // foaie in limba romana: virgula zecimala
+        getValue: () => get(r, c), getDisplayValue: () => { const x = get(r, c); return typeof x === 'number' ? String(x).replace('.', ',') : String(x); },
         setValues(v) { v.forEach((row, i) => row.forEach((x, j) => set(r + i, c + j, x))); return rg; },
         setValue(x) { set(r, c, x); return rg; },
         clearContent() { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) set(r + i, c + j, ''); return rg; },

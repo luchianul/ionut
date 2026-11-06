@@ -40,6 +40,16 @@ const server = http.createServer((req, res) => {
   const st = call('getAppData', '2026').data.statistici;
   assert.strictEqual(st.length, 1);
   assert.strictEqual(Number(st[0][5]), 8.5 * 30 + 20 * 0.45 + 3.5, 'total saptamana');
+  // numere cu virgula: foaia afiseaza "610,14" iar aplicatia trebuia sa arate 610.14 (nu 610)
+  assert(call('salveazaFacturaCarburant', { nume: 'Motorina test', suma: '610,14', an: '2026' }).ok);
+  const mot = call('getEvidentaMotorina', '2026').data;
+  assert.strictEqual(mot.facturi[0][2], '610.14', 'suma motorina cu zecimale');
+  assert.strictEqual(Math.round(mot.totalFacturi * 100) / 100, 610.14);
+  assert.strictEqual(call('getAppData', '2026').data.istoric[0][5], '8.5', 'ore cu zecimale chiar daca foaia afiseaza virgula');
+  assert.strictEqual(call('getAppData', '2026').data.statistici[0][5], '267.5');
+  assert(call('editeazaMotorina', { row: 2, nume: 'Motorina test', suma: '700,5' }).ok);
+  assert.strictEqual(call('getEvidentaMotorina', '2026').data.facturi[0][2], '700.5');
+  assert(call('stergeFacturaCarburant', 2).ok); // curatam, ca sa nu influenteze testul de interfata
   console.log('API ok');
 
   /* ---- 2. Interfata ---- */
@@ -104,10 +114,11 @@ const server = http.createServer((req, res) => {
   // motorina
   await pg.click('.side-link[data-view=motorina]');
   await pg.click('text=Adaugă Factură'); await pg.waitForSelector('#motorinaModal.show');
-  await pg.fill('#mot-nume', 'OMV 05.11'); await pg.fill('#mot-suma', '50');
+  await pg.fill('#mot-nume', 'OMV 05.11'); await pg.fill('#mot-suma', '610.14');
   await pg.click('#motorinaModal button:has-text("SALVEAZĂ")');
   await pg.waitForSelector('#tbody-motorina td:has-text("OMV 05.11")');
-  assert.match(await pg.textContent('#mot-total-facturi'), /50\.00/);
+  assert.match(await pg.textContent('#mot-total-facturi'), /610\.14/);
+  assert.match(await pg.textContent('#tbody-motorina'), /610\.14€/, 'lista arata 610.14, nu 610');
   await pg.screenshot({ path: path.join(shots, '4-motorina.png') });
 
   // marcheaza plata saptamanii (Sheet2), stergere zi
