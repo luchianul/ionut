@@ -4,7 +4,7 @@
   <base target="_top">
   <title>Pontaj Ionuț</title>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <link rel="stylesheet" href="vendor/bootstrap.min.css">
   <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
   <link rel="stylesheet" href="vendor/fonts.css">
@@ -153,7 +153,8 @@
   #form-factura-dropdown{ display:none; }
   #form-factura-dropdown.open{ display:block; }
 
-  body { display:block; padding-bottom:78px; }
+  html { overflow-x:hidden; }
+  body { display:block; padding-bottom:78px; max-width:100%; }
 
   /* Sidebar -> bară de navigare jos */
   .sidebar {
@@ -279,6 +280,7 @@
     <div class="content">
 
       <div id="global-alert" class="alert-uitate" style="display:none;"></div>
+      <div id="global-alert-zile" class="alert-uitate" style="display:none; background:#FFF7ED; border-color:#FDBA74; color:#9A3412;"></div>
       <div id="global-alert-mod" class="alert-uitate" style="display:none; background:var(--danger-soft); border-color:#FCA5A5; color:#991B1B;"></div>
 
       <!-- ===== VIEW: JURNAL ===== -->
@@ -603,11 +605,60 @@ const subs = {
         populeazaSaptamani(globalData);
         filtreazaDupaSaptamana();
         renderStats(statsGlobale);
+        afiseazaZileLipsa();
         Swal.close();
         verificaFacturiUitate(an);
       })
       .withFailureHandler(err => { Swal.close(); Swal.fire({ icon:'error', title:'Eroare la încărcare', text: err.message }); })
       .getAppData(an);
+  }
+
+  // ---------- AVERTIZARE: ZILE NEPONTATE ----------
+  const ZILE_RO = ['Dum','Lun','Mar','Mie','Joi','Vin','Sâm'];
+  function isoLocal(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+  // Zilele lucrătoare (luni-vineri) din ultimele 14 zile, fără nicio înregistrare. Azi se cere abia după ora 18.
+  function getZileNepontate(){
+    const acum = new Date();
+    if (String(acum.getFullYear()) !== String(document.getElementById('anSelector').value)) return [];
+    const pontate = new Set(globalData.map(r => String(r[1])));
+    if (pontate.size === 0) return [];
+    const prima = Array.from(pontate).sort()[0];
+    const sfarsit = new Date(acum.getFullYear(), acum.getMonth(), acum.getDate());
+    if (acum.getHours() < 18) sfarsit.setDate(sfarsit.getDate() - 1);
+    const start = new Date(sfarsit); start.setDate(start.getDate() - 13);
+    const lipsa = [];
+    for (let d = new Date(start); d <= sfarsit; d.setDate(d.getDate() + 1)){
+      const iso = isoLocal(d), dow = d.getDay();
+      if (dow === 0 || dow === 6 || iso < prima || pontate.has(iso)) continue;
+      lipsa.push(iso);
+    }
+    return lipsa;
+  }
+
+  function afiseazaZileLipsa(){
+    const banner = document.getElementById('global-alert-zile');
+    const lipsa = getZileNepontate();
+    let ascunse = ''; try { ascunse = localStorage.getItem('pontaj.zile.ascunse') || ''; } catch(e){}
+    if (lipsa.length === 0 || lipsa.join(',') === ascunse){ banner.style.display = 'none'; return; }
+    const nume = iso => { const p = iso.split('-'); return ZILE_RO[new Date(p[0], p[1]-1, p[2]).getDay()] + ' ' + p[2] + '.' + p[1]; };
+    const lista = lipsa.slice(0, 5).map(nume).join(', ') + (lipsa.length > 5 ? ' +' + (lipsa.length - 5) + ' altele' : '');
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-calendar-x-fill" style="color:#C2410C"></i>
+        <div><b>${lipsa.length} ${lipsa.length === 1 ? 'zi nepontată' : 'zile nepontate'}</b> — ${lista}</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-warning fw-bold" onclick="deschideAdaugare('${lipsa[0]}')">Pontează</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="ascundeZileLipsa()">Ascunde</button>
+      </div>`;
+  }
+
+  // „Ascunde" (de ex. concediu sau sărbătoare): avertizarea revine doar dacă apare o altă zi lipsă
+  function ascundeZileLipsa(){
+    try { localStorage.setItem('pontaj.zile.ascunse', getZileNepontate().join(',')); } catch(e){}
+    afiseazaZileLipsa();
   }
 
   // ---------- VERIFICARE SĂPTĂMÂNI NEFACTURATE ----------
@@ -848,10 +899,10 @@ const subs = {
   }
 
   // ---------- ADAUGĂ / EDITEAZĂ ZI ----------
-  function deschideAdaugare(){
+  function deschideAdaugare(dataIso){
   currentEditIdx = null;
   document.getElementById('fMain').reset();
-  document.getElementById('data').valueAsDate = new Date();
+  document.getElementById('data').value = dataIso || isoLocal(new Date());
   document.getElementById('modalTitle').innerText = 'Adaugă Zi';
   google.script.run
     .withSuccessHandler(t => {
@@ -880,6 +931,24 @@ const subs = {
   modalObj.show();
 }
 
+  // Pe telefon, tastatura și fereastra de adăugare se închid odată; pagina putea rămâne deplasată în lateral.
+  function resetVista(){
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e){}
+    [0, 150, 450, 1000].forEach(ms => setTimeout(() => {
+      if (window.scrollX) window.scrollTo(0, window.scrollY);
+      document.documentElement.scrollLeft = 0; document.body.scrollLeft = 0;
+    }, ms));
+  }
+
+  function inchideModalSiApoi(fn){
+    const el = document.getElementById('addModal'); let facut = false;
+    const gata = () => { if (facut) return; facut = true; resetVista(); fn(); };
+    el.addEventListener('hidden.bs.modal', gata, { once:true });
+    setTimeout(gata, 900);          // plasă de siguranță, dacă evenimentul nu vine
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e){}   // închide tastatura întâi
+    modalObj.hide();
+  }
+
   function execSalveaza(){
     const btn = document.getElementById('btnS');
     const dataVal = document.getElementById('data').value;
@@ -897,8 +966,11 @@ const subs = {
 
     google.script.run
       .withSuccessHandler(() => {
-        modalObj.hide(); loadData(); btn.disabled = false; btn.innerText = "SALVEAZĂ";
-        Swal.fire({ icon:'success', title:'Salvat!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+        btn.disabled = false; btn.innerText = "SALVEAZĂ";
+        inchideModalSiApoi(() => {
+          loadData();
+          Swal.fire({ icon:'success', title:'Salvat!', toast:true, position:'top-end', showConfirmButton:false, timer:2000 });
+        });
       })
       .withFailureHandler(err => {
         Swal.fire({ icon:'error', title:'Eroare', text: err.message });
