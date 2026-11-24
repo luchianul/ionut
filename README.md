@@ -22,6 +22,7 @@ La fiecare push pe `main` care modifică aplicația (`www/`, `electron/` etc.) s
 - **Windows**: aplicația instalată caută singură versiuni noi (la pornire și din oră în oră) și te întreabă dacă repornești.
 - **Android**: la pornire apare bannerul „Actualizează" care descarcă APK-ul nou; îl instalezi peste cel vechi (datele sunt în Sheets, nu se pierd).
 - APK-ul este semnat cu o cheie fixă din `android-signing/` (necesar pentru ca Android să accepte actualizarea). Este potrivit pentru uz intern, nu pentru Google Play.
+  Cheia se aplică direct în `build.gradle` la fiecare build, iar build-ul pică dacă APK-ul nu e semnat cu ea (verificare în `.github/workflows/build.yml`). Dacă schimbi cheia, Android cere dezinstalarea aplicației vechi o singură dată.
 
 Dacă modifici `Code.gs` în Apps Script, fă din nou **New version** la deployment.
 

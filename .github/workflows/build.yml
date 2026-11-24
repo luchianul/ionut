@@ -59,11 +59,42 @@ jobs:
           grep -E "versionCode|versionName" android/app/build.gradle
       - name: Cheie de semnare fixa (aceeasi la fiecare build, altfel Android nu accepta actualizarea)
         run: |
-          mkdir -p ~/.android
-          cp android-signing/pontaj.keystore ~/.android/debug.keystore
+          # configuram semnarea direct in build.gradle (copierea in ~/.android/debug.keystore nu era folosita de Gradle:
+          # fiecare build isi genera o cheie noua, iar Android refuza instalarea peste versiunea veche)
+          cp android-signing/pontaj.keystore android/app/pontaj.keystore
+          python3 - <<'PY'
+          import re
+          p = 'android/app/build.gradle'
+          s = open(p).read()
+          cfg = (
+              "    signingConfigs {\n"
+              "        fixa {\n"
+              "            storeFile file('pontaj.keystore')\n"
+              "            storePassword 'android'\n"
+              "            keyAlias 'androiddebugkey'\n"
+              "            keyPassword 'android'\n"
+              "        }\n"
+              "    }\n"
+              "    buildTypes {\n"
+              "        debug {\n"
+              "            signingConfig signingConfigs.fixa\n"
+              "        }\n"
+          )
+          s, n = re.subn(r'[ \t]*buildTypes\s*\{[ \t]*\n', lambda m: cfg, s, count=1)
+          assert n == 1, 'nu gasesc buildTypes in build.gradle'
+          open(p, 'w').write(s)
+          PY
+          grep -n -B1 -A3 "signingConfig" android/app/build.gradle
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+      - name: Verifica semnatura (trebuie sa fie cheia fixa, altfel build-ul pica)
+        run: |
+          A=$(keytool -printcert -jarfile android/app/build/outputs/apk/debug/app-debug.apk | grep "SHA256:" | head -1 | sed 's/^[[:space:]]*//')
+          K=$(keytool -list -v -keystore android-signing/pontaj.keystore -storepass android | grep "SHA256:" | head -1 | sed 's/^[[:space:]]*//')
+          echo "APK:   $A"
+          echo "Cheie: $K"
+          [ -n "$A" ] && [ "$A" = "$K" ]
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk Pontaj.apk
       - uses: actions/upload-artifact@v4
         with:
