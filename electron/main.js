@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -11,7 +11,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Pontaj',
     backgroundColor: '#f3f5f9',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.js') },
   });
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname, '..', 'www', 'index.html'));
@@ -20,10 +20,21 @@ function createWindow() {
   return win;
 }
 
+// Cautare manuala (butonul din Setari aplicatie)
+let updater = null;
+ipcMain.handle('check-updates', async () => {
+  if (!updater) return { status: 'dev' };
+  try {
+    const r = await updater.checkForUpdates();
+    return r && r.isUpdateAvailable ? { status: 'available', version: r.updateInfo.version } : { status: 'none' };
+  } catch (e) { return { status: 'error' }; }
+});
+
 // Actualizare automata din GitHub Releases (doar in aplicatia instalata)
 function setupUpdates(win) {
   if (!app.isPackaged) return;
   const { autoUpdater } = require('electron-updater');
+  updater = autoUpdater;
   autoUpdater.autoDownload = true;
   autoUpdater.on('update-downloaded', (info) => {
     dialog.showMessageBox(win, {

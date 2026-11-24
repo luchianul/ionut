@@ -35,6 +35,8 @@
     return asking;
   }
   window.schimbaServer = askUrl; // se poate apela din consola: schimbaServer()
+  window.getServerUrl = getUrl;
+  window.setServerUrl = (v) => { localStorage.setItem(KEY, v); };
 
   async function call(fn, args) {
     let url = getUrl();
